@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -21,21 +22,45 @@ func main() {
 	fmt.Println("\n\n\n\n")
 
 	socketName := "/tmp/scrollwork.sock"
+	ctx, cancel := context.WithCancel(context.Background())
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	l, err := net.Listen("unix", socketName)
+	addr := net.UnixAddr{Name: socketName, Net: "unix"}
+	listener, err := net.ListenUnix("unix", &addr)
 	if err != nil {
-		log.Fatal("listen error:", err)
+		log.Fatal("Scrollwork failed to start:", err)
 	}
+
+	go func() {
+		sig := <-sigChan
+		log.Printf("Received %v signal. Scrollwork is shutting down...\n", sig)
+		cancel()
+		listener.Close()
+	}()
 
 	log.Printf("Scrollwork socket listening at %s", socketName)
 	log.Printf("Waiting for connnections...")
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("Scrollwork socket at %s closed", socketName)
+			return
+		default:
+			conn, err := listener.AcceptUnix()
+			if err != nil {
+				log.Printf("Connections can no longer be accepted: %v", err)
+				break
+			}
 
-	sig := <-sigChan
-	log.Printf("Received %v signal. Scrollwork is shutting down...\n", sig)
+			go handleConnection(conn)
+		}
+	}
+}
 
-	l.Close()
-	log.Printf("Scrollwork socket at %s closed", socketName)
+func handleConnection(conn net.Conn) {
+	log.Printf("Connection accepted")
+	conn.Write([]byte("Hello\n"))
+	conn.Close()
 }
