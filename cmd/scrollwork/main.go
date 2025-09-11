@@ -15,19 +15,25 @@ import (
 //go:embed banner.txt
 var banner []byte
 
+type Scrollwork struct {
+	Addr net.UnixAddr
+}
+
 func main() {
 	fmt.Println(string(banner))
 	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
 	fmt.Println("https://github.com/vennbilling/scrollwork")
 	fmt.Println("\n\n\n\n")
 
-	socketName := "/tmp/scrollwork.sock"
+	sw := Scrollwork{
+		Addr: net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"},
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	addr := net.UnixAddr{Name: socketName, Net: "unix"}
-	listener, err := net.ListenUnix("unix", &addr)
+	listener, err := net.ListenUnix("unix", &sw.Addr)
 	if err != nil {
 		log.Fatal("Scrollwork failed to start:", err)
 	}
@@ -38,6 +44,12 @@ func main() {
 		cancel()
 		listener.Close()
 	}()
+
+	// TODO: Based on the AI Client configured:
+	// 1. Fetch the current quota
+	// 2. Spin up a worker that fetches the current quota after X minutes
+	// 3. Update the current quota
+	// 4. Use current quota when doing count tokens logic
 
 	log.Printf("Scrollwork socket listening at %s", socketName)
 	log.Printf("Waiting for connnections...")
@@ -63,4 +75,11 @@ func handleConnection(conn net.Conn) {
 	log.Printf("Connection accepted")
 	conn.Write([]byte("Hello\n"))
 	conn.Close()
+
+	// TODO:
+	// 1. parse the JSON received, split by \n
+	// 2. Validate. throw out invalid json
+	// 1. parse the message out of the JSON
+	// 2. Count the tokens
+	// 3. Return tokens used and percentage of total quota used
 }
