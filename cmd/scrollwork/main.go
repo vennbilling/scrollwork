@@ -15,34 +15,42 @@ import (
 //go:embed banner.txt
 var banner []byte
 
-type Scrollwork struct {
-	Addr net.UnixAddr
+type ScrollworkAgent struct {
+	listener *net.UnixListener
+
+	done   chan os.Signal
+	cancel context.CancelFunc
 }
 
 func main() {
 	fmt.Println(string(banner))
 	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
 	fmt.Println("https://github.com/vennbilling/scrollwork")
-	fmt.Println("\n\n\n\n")
-
-	sw := Scrollwork{
-		Addr: net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"},
-	}
+	fmt.Println("\n\n")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	addr := net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"}
 
-	listener, err := net.ListenUnix("unix", &sw.Addr)
+	listener, err := net.ListenUnix("unix", &addr)
 	if err != nil {
 		log.Fatal("Scrollwork failed to start:", err)
 	}
 
+	sw := ScrollworkAgent{
+		listener: listener,
+
+		done:   sigChan,
+		cancel: cancel,
+	}
+
+	sw.Start(ctx)
+}
+
+func (sw *ScrollworkAgent) Start(ctx context.Context) {
 	go func() {
-		sig := <-sigChan
-		log.Printf("Received %v signal. Scrollwork is shutting down...\n", sig)
-		cancel()
-		listener.Close()
+		sw.Shutdown(<-sw.done)
 	}()
 
 	// TODO: Based on the AI Client configured:
@@ -51,28 +59,36 @@ func main() {
 	// 3. Update the current quota
 	// 4. Use current quota when doing count tokens logic
 
+	socketName := sw.listener.Addr().String()
+
 	log.Printf("Scrollwork socket listening at %s", socketName)
 	log.Printf("Waiting for connnections...")
-
 	for {
 		select {
 		case <-ctx.Done():
 			log.Printf("Scrollwork socket at %s closed", socketName)
 			return
 		default:
-			conn, err := listener.AcceptUnix()
+			conn, err := sw.listener.AcceptUnix()
 			if err != nil {
 				log.Printf("Connections can no longer be accepted: %v", err)
 				break
 			}
 
+			log.Printf("Connection accepted")
 			go handleConnection(conn)
 		}
 	}
 }
 
+func (sw *ScrollworkAgent) Shutdown(sig os.Signal) {
+	log.Printf("Received %v signal. Scrollwork is shutting down...\n", sig)
+
+	sw.cancel()
+	sw.listener.Close()
+}
+
 func handleConnection(conn net.Conn) {
-	log.Printf("Connection accepted")
 	conn.Write([]byte("Hello\n"))
 	conn.Close()
 
