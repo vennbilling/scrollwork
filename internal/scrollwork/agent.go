@@ -8,7 +8,12 @@ import (
 	"os"
 	"strings"
 	"sync"
+
+	_ "embed"
 )
+
+//go:embed banner.txt
+var banner []byte
 
 type AgentConfig struct {
 	Model                       string
@@ -52,8 +57,11 @@ func (a *Agent) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
 	a.listener = listener
 	a.wg.Add(1)
+
+	a.startupMessage()
 
 	// TODO: Configure usage worker and block while we wait for initial usage
 
@@ -114,6 +122,13 @@ func (a *Agent) isUsingAnthropic() bool {
 
 func (a *Agent) isUsingOpenAI() bool {
 	return strings.Contains(a.config.Model, "gpt-") || strings.Contains(a.config.Model, "text-")
+}
+
+func (a *Agent) startupMessage() {
+	fmt.Println(string(banner))
+	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
+	fmt.Println("https://github.com/vennbilling/scrollwork")
+	fmt.Println("\n\n")
 }
 
 func handleConnection(conn net.Conn) {

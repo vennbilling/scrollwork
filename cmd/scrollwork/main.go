@@ -15,9 +15,6 @@ import (
 	_ "embed"
 )
 
-//go:embed banner.txt
-var banner []byte
-
 var (
 	model              string
 	apiKey             string
@@ -49,20 +46,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	config := &scrollwork.AgentConfig{
 		Model:                       model,
 		APIKey:                      apiKey,
 		RefreshUsageIntervalMinutes: refreshRateMinutes,
 	}
 	agent := scrollwork.NewAgent(config)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	fmt.Println(string(banner))
-	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
-	fmt.Println("https://github.com/vennbilling/scrollwork")
-	fmt.Println("\n\n")
 
 	if err := agent.Start(ctx); err != nil {
 		log.Fatalf("Scrollwork Agent could not start: %v", err)
