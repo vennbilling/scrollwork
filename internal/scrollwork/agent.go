@@ -33,6 +33,10 @@ type Agent struct {
 	wg *sync.WaitGroup
 }
 
+// NewAgent returns an Agent.
+// A Scrollwork Agent is responsible for handling requests to check the billing risk level of an AI Prompt.
+// It also spins up a worker that periodically checks and syncs an organization's current usage.
+// This usage is used when calculating the risk of a AI Promot.
 func NewAgent(config *AgentConfig) *Agent {
 	var wg sync.WaitGroup
 	return &Agent{
