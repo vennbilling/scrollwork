@@ -1,9 +1,8 @@
 FROM golang:1.24-alpine AS builder
 WORKDIR /app
 
-# TODO: No vendor deps yet...
-# COPY go.mod go.sum ./
-# RUN go mod download
+COPY go.mod go.sum ./
+RUN go mod download
 COPY . .
 
 RUN GOOS=linux go build -o scrollwork cmd/scrollwork/main.go
