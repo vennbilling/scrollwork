@@ -80,12 +80,12 @@ func main() {
 	sw.listener = listener
 
 	// Configure AI Model and Client
-	if !sw.IsAnthropic() && !sw.IsOpenAI() {
+	if !sw.IsUsingAnthropic() && !sw.IsUsingOpenAI() {
 		listener.Close()
 		log.Fatal("Only OpenAI and Anthropic models are supported.")
 	}
 
-	if sw.IsAnthropic() {
+	if sw.IsUsingAnthropic() {
 		sw.AnthropicClient = anthropic.NewClient(option.WithAPIKey(apiKey))
 	}
 
@@ -134,11 +134,11 @@ func (sw *ScrollworkAgent) Shutdown() {
 	sw.listener.Close()
 }
 
-func (sw *ScrollworkAgent) IsAnthropic() bool {
+func (sw *ScrollworkAgent) IsUsingAnthropic() bool {
 	return strings.Contains(sw.model, "claude-")
 }
 
-func (sw *ScrollworkAgent) IsOpenAI() bool {
+func (sw *ScrollworkAgent) IsUsingOpenAI() bool {
 	return strings.Contains(sw.model, "gpt-") || strings.Contains(sw.model, "text-")
 }
 
