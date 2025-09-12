@@ -21,15 +21,25 @@ import (
 var banner []byte
 
 var (
-	model  string
-	apiKey string
+	model              string
+	apiKey             string
+	refreshRateMinutes int
 )
 
+type organizationUsage struct {
+	UncachedInputTokens  int
+	CacheReadInputTokens int
+	OutputTokens         int
+}
+
 type ScrollworkAgent struct {
-	listener *net.UnixListener
-	model    string
+	listener           *net.UnixListener
+	model              string
+	refreshRateMinutes int
 
 	AnthropicClient anthropic.Client
+
+	OrganizationUsage organizationUsage
 
 	done   chan os.Signal
 	cancel context.CancelFunc
@@ -38,6 +48,7 @@ type ScrollworkAgent struct {
 func init() {
 	flag.StringVar(&model, "model", "", "AI Model")
 	flag.StringVar(&apiKey, "apiKey", "", "API Key")
+	flag.IntVar(&refreshRateMinutes, "refreshRate", 1, "Refresh rate in minutes for fetching organization usage")
 }
 
 func main() {
@@ -64,7 +75,8 @@ func main() {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
 	sw := ScrollworkAgent{
-		model: model,
+		model:              model,
+		refreshRateMinutes: refreshRateMinutes,
 
 		done:   sigChan,
 		cancel: cancel,
@@ -93,6 +105,7 @@ func main() {
 }
 
 func (sw *ScrollworkAgent) Start(ctx context.Context) {
+	// TODO: Hard crashes aren't calling shutdown. Leverage recover()
 	go func() {
 		sig := <-sw.done
 
@@ -101,10 +114,14 @@ func (sw *ScrollworkAgent) Start(ctx context.Context) {
 	}()
 
 	// TODO: Based on the AI Client configured:
-	// 1. Fetch the current quota
 	// 2. Spin up a worker that fetches the current quota after X minutes
 	// 3. Update the current quota
 	// 4. Use current quota when doing count tokens logic
+
+	if err := sw.fetchOrganizationUsage(ctx); err != nil {
+		// TODO: Either retry or fail fast if we can't get this info...
+		log.Printf("Scrollwork failed FetchOrganizationInfo. Quotas not be enforced")
+	}
 
 	socketName := sw.listener.Addr().String()
 
@@ -124,7 +141,7 @@ func (sw *ScrollworkAgent) Start(ctx context.Context) {
 			}
 
 			log.Printf("Connection accepted")
-			go handleConnection(conn)
+			go handleConnection(conn, sw.OrganizationUsage)
 		}
 	}
 }
@@ -142,14 +159,34 @@ func (sw *ScrollworkAgent) IsUsingOpenAI() bool {
 	return strings.Contains(sw.model, "gpt-") || strings.Contains(sw.model, "text-")
 }
 
-func handleConnection(conn net.Conn) {
-	conn.Write([]byte("Hello\n"))
-	conn.Close()
+func (sw *ScrollworkAgent) fetchOrganizationUsage(ctx context.Context) error {
+	if sw.IsUsingOpenAI() {
+		return fmt.Errorf("FetchOrganizationInfo failed: OpenAI is not supported at this time")
+	}
 
+	log.Printf("Fetching current organization usage...")
+
+	// TODO: Fetch from /v1/organizations/usage_report/messages
+	// TODO: Refresh on a cadenence that is configured on app start
+	resp := organizationUsage{
+		UncachedInputTokens:  12345,
+		CacheReadInputTokens: 67890,
+		OutputTokens:         13579,
+	}
+
+	sw.OrganizationUsage = resp
+
+	return nil
+}
+
+func handleConnection(conn net.Conn, usage organizationUsage) {
 	// TODO:
 	// 1. parse the JSON received, split by \n
 	// 2. Validate. throw out invalid json
-	// 1. parse the message out of the JSON
-	// 2. Count the tokens
-	// 3. Return tokens used and percentage of total quota used
+	// 3. Count the tokens using model's APIs
+	// 4. Return tokens used and percentage of total quota used
+	// 5. Return a risk level of the request. Low = Low cost, Medium = Medium cost, High = High / Unknown cost. Costs are configurable
+	conn.Write([]byte(fmt.Sprintf("Hello. You currently have %d UncachedInputTokens left\n", usage.UncachedInputTokens)))
+	conn.Close()
+	log.Printf("Connection closed")
 }
