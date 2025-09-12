@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -55,20 +56,19 @@ func main() {
 	}
 	agent := scrollwork.NewAgent(config)
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	fmt.Println(string(banner))
 	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
 	fmt.Println("https://github.com/vennbilling/scrollwork")
 	fmt.Println("\n\n")
 
-	if err := agent.Start(); err != nil {
+	if err := agent.Start(ctx); err != nil {
 		log.Fatalf("Scrollwork Agent could not start: %v", err)
 	}
 
-	// Configure lifecycle signals
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	<-sigChan
+	<-ctx.Done()
 	log.Println("Shutdown signal received, Scrollwork Agent is shutting down...")
 
 	if err := agent.Stop(); err != nil {

@@ -37,12 +37,12 @@ func NewAgent(config *AgentConfig) *Agent {
 	}
 }
 
-func (a *Agent) Start() error {
+func (a *Agent) Start(ctx context.Context) error {
 	if !a.isUsingAnthropic() && !a.isUsingOpenAI() {
 		return fmt.Errorf("invalid AI Model: only OpenAI and Anthropic models are supported.")
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(ctx)
 
 	a.cancel = cancel
 
@@ -70,9 +70,12 @@ func (a *Agent) Stop() error {
 		a.cancel()
 	}
 
+	// Shut down the UNIX socket
 	if a.listener != nil {
 		a.listener.Close()
 	}
+
+	// Shut down the usage worker
 
 	a.wg.Wait()
 
