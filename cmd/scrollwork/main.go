@@ -61,11 +61,9 @@ func main() {
 	}
 
 	<-ctx.Done()
-	log.Println("Shutdown signal received, Scrollwork Agent is shutting down...")
+	log.Println("Shutdown signal received, Scrollwork is shutting down...")
 
 	if err := agent.Stop(); err != nil {
 		log.Fatalf("Scrollwork Agent failed to shut down: %v", err)
 	}
-
-	log.Printf("Scrollwork Agent shut down complete.")
 }

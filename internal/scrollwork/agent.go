@@ -25,6 +25,7 @@ type Agent struct {
 	config *AgentConfig
 
 	listener *net.UnixListener
+	worker   usageWorker
 
 	usage  chan int
 	done   chan os.Signal
@@ -39,13 +40,18 @@ type Agent struct {
 // This usage is used when calculating the risk of a AI Promot.
 func NewAgent(config *AgentConfig) *Agent {
 	var wg sync.WaitGroup
+
+	usage := make(chan int, 1)
+
 	return &Agent{
 		config: config,
 
-		wg: &wg,
+		usage: usage,
+		wg:    &wg,
 	}
 }
 
+// Start starts the Scrollwork Agent.
 func (a *Agent) Start(ctx context.Context) error {
 	if !a.isUsingAnthropic() && !a.isUsingOpenAI() {
 		return fmt.Errorf("invalid AI Model: only OpenAI and Anthropic models are supported.")
@@ -65,18 +71,26 @@ func (a *Agent) Start(ctx context.Context) error {
 	a.listener = listener
 	a.wg.Add(1)
 
-	a.startupMessage()
-
 	// TODO: Configure usage worker and block while we wait for initial usage
+	worker := newUsageWorker(a.usage)
+
+	a.startupMessage()
+	a.wg.Add(1)
 
 	go func() {
 		defer a.wg.Done()
 		a.listen(ctx)
 	}()
 
+	go func() {
+		defer a.wg.Done()
+		worker.start(ctx)
+	}()
+
 	return nil
 }
 
+// Stop stops the Scrollwork Agent.
 func (a *Agent) Stop() error {
 	if a.cancel != nil {
 		a.cancel()
@@ -88,6 +102,7 @@ func (a *Agent) Stop() error {
 	}
 
 	// Shut down the usage worker
+	a.worker.stop()
 
 	a.wg.Wait()
 
@@ -95,8 +110,7 @@ func (a *Agent) Stop() error {
 }
 
 func (a *Agent) listen(ctx context.Context) {
-	log.Printf("Scrollwork Agent socket has started and is now listening for connections.")
-	log.Printf("Current AI Model: %s.", a.config.Model)
+	log.Printf("Scrollwork Agent socket has started and is now ready for connections.")
 
 	for {
 		select {
@@ -133,6 +147,8 @@ func (a *Agent) startupMessage() {
 	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
 	fmt.Println("https://github.com/vennbilling/scrollwork")
 	fmt.Println("\n\n")
+
+	log.Printf("Using AI Model: %s.", a.config.Model)
 }
 
 func handleConnection(conn net.Conn) {
