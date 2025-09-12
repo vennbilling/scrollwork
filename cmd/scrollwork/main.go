@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	_ "embed"
 
@@ -32,6 +34,14 @@ type organizationUsage struct {
 	OutputTokens         int
 }
 
+type worker struct {
+	Interval time.Duration
+	Period   time.Duration
+	wg       *sync.WaitGroup
+
+	usageChan chan organizationUsage
+}
+
 type ScrollworkAgent struct {
 	listener           *net.UnixListener
 	model              string
@@ -41,8 +51,11 @@ type ScrollworkAgent struct {
 
 	OrganizationUsage organizationUsage
 
-	done   chan os.Signal
-	cancel context.CancelFunc
+	usageChan chan organizationUsage
+	done      chan os.Signal
+	cancel    context.CancelFunc
+
+	wg *sync.WaitGroup
 }
 
 func init() {
@@ -74,12 +87,19 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
+	// Usage Channel
+	usageChan := make(chan organizationUsage, 1)
+
+	var wg sync.WaitGroup
+
 	sw := ScrollworkAgent{
 		model:              model,
 		refreshRateMinutes: refreshRateMinutes,
 
-		done:   sigChan,
-		cancel: cancel,
+		usageChan: usageChan,
+		done:      sigChan,
+		cancel:    cancel,
+		wg:        &wg,
 	}
 
 	// Configure UNIX socket and lisenter
@@ -101,7 +121,15 @@ func main() {
 		sw.AnthropicClient = anthropic.NewClient(option.WithAPIKey(apiKey))
 	}
 
+	w := NewWorker(time.Duration(sw.refreshRateMinutes)*time.Minute, usageChan, &wg)
+
+	wg.Add(1)
+	go w.Start(ctx)
+
 	sw.Start(ctx)
+
+	// TODO: Shutdown isn't working right. Sometimes we see the logging for the worker shutting down. Sometimes we dont...
+	w.wg.Done()
 }
 
 func (sw *ScrollworkAgent) Start(ctx context.Context) {
@@ -133,6 +161,11 @@ func (sw *ScrollworkAgent) Start(ctx context.Context) {
 		case <-ctx.Done():
 			log.Printf("Scrollwork socket at %s closed", socketName)
 			return
+		case orgUsage := <-sw.usageChan:
+			log.Printf("Organization usage updated: %+v", sw.OrganizationUsage)
+			// TODO: Should sync this with a mutex
+			sw.OrganizationUsage = orgUsage
+			break
 		default:
 			conn, err := sw.listener.AcceptUnix()
 			if err != nil {
@@ -149,6 +182,7 @@ func (sw *ScrollworkAgent) Start(ctx context.Context) {
 func (sw *ScrollworkAgent) Shutdown() {
 	sw.cancel()
 	sw.listener.Close()
+	sw.wg.Wait()
 }
 
 func (sw *ScrollworkAgent) IsUsingAnthropic() bool {
@@ -189,4 +223,41 @@ func handleConnection(conn net.Conn, usage organizationUsage) {
 	conn.Write([]byte(fmt.Sprintf("Hello. You currently have %d UncachedInputTokens left\n", usage.UncachedInputTokens)))
 	conn.Close()
 	log.Printf("Connection closed")
+}
+
+func NewWorker(interval time.Duration, usageChan chan organizationUsage, wg *sync.WaitGroup) *worker {
+	return &worker{
+		Interval: interval,
+		Period:   interval,
+		wg:       wg,
+
+		usageChan: usageChan,
+	}
+}
+
+func (w *worker) Start(ctx context.Context) {
+	log.Printf("Refresh Usage Worker started with interval %v and period %v", w.Interval, w.Period)
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("Refresh Usage Worker is shutting down...")
+			return
+		case <-time.After(w.Period):
+			break
+		}
+
+		started := time.Now()
+
+		w.usageChan <- organizationUsage{
+			UncachedInputTokens:  12345,
+			CacheReadInputTokens: 67890,
+			OutputTokens:         13580,
+		}
+
+		finished := time.Now()
+
+		duration := finished.Sub(started)
+		w.Period = w.Interval - duration
+	}
 }
