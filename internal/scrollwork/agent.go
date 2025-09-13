@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 
@@ -27,9 +26,8 @@ type Agent struct {
 	listener *net.UnixListener
 	worker   *UsageWorker
 
-	usage  chan int
-	done   chan os.Signal
-	cancel context.CancelFunc
+	usageReceived chan int
+	cancel        context.CancelFunc
 
 	wg *sync.WaitGroup
 }
@@ -46,8 +44,8 @@ func NewAgent(config *AgentConfig) *Agent {
 	return &Agent{
 		config: config,
 
-		usage: usage,
-		wg:    &wg,
+		usageReceived: usage,
+		wg:            &wg,
 	}
 }
 
@@ -71,19 +69,22 @@ func (a *Agent) Start(ctx context.Context) error {
 	a.listener = listener
 	a.wg.Add(1)
 
-	a.worker = newUsageWorker(a.usage)
+	a.worker = newUsageWorker(a.usageReceived)
 	a.wg.Add(1)
 
 	a.startupMessage()
 
 	go func() {
 		defer a.wg.Done()
-		a.listen(ctx)
+		a.worker.Start(ctx, a.config.RefreshUsageIntervalMinutes)
 	}()
+
+	// Wait until worker is ready. When a worker starts, it will also make a request to get the latest usage
+	<-a.usageReceived
 
 	go func() {
 		defer a.wg.Done()
-		a.worker.Start(ctx, a.config.RefreshUsageIntervalMinutes)
+		a.listen(ctx)
 	}()
 
 	return nil
@@ -116,7 +117,7 @@ func (a *Agent) listen(ctx context.Context) {
 		case <-ctx.Done():
 			log.Printf("Scrollwork Agent socket closed")
 			return
-		case <-a.usage:
+		case <-a.usageReceived:
 			log.Printf("Organization usage updated")
 			// TODO: Should sync this with a mutex
 			break

@@ -7,21 +7,24 @@ import (
 )
 
 type UsageWorker struct {
-	notifyChan chan int
-	ticker     *time.Ticker
+	usageChan chan int
+	ticker    *time.Ticker
 }
 
 // newUsageWorker creates a new [usageWorker].
 //
 // The usageWorker is responsible for fetching and storing the current token usage for a given organization.
-func newUsageWorker(notiferChan chan int) *UsageWorker {
+func newUsageWorker(usageReceivedChan chan int) *UsageWorker {
 	return &UsageWorker{
-		notifyChan: notiferChan,
+		usageChan: usageReceivedChan,
 	}
 }
 
 func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	log.Printf("Scrollwork Usage Worker has started.")
+
+	// Immediately fetch usage on start
+	w.fetchUsage()
 
 	for {
 		select {
@@ -39,4 +42,10 @@ func (w *UsageWorker) Stop() {
 	}
 
 	log.Printf("Scrollwork Usage Worker has shutdown.")
+}
+
+func (w *UsageWorker) fetchUsage() {
+	log.Printf("Fetching latest usage")
+
+	w.usageChan <- 1
 }
