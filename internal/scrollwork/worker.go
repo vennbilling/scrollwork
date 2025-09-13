@@ -44,7 +44,8 @@ func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	for {
 		select {
 		case <-ticker.C:
-			w.fetchUsage()
+			usage := w.fetchUsage()
+			w.usageReceived <- usage.Tokens
 		case <-ctx.Done():
 			log.Printf("Scrollwork Usage Worker will be shutting down...")
 			return
