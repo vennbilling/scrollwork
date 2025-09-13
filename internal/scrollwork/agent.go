@@ -9,28 +9,43 @@ import (
 	"sync"
 
 	_ "embed"
+
+	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
 //go:embed banner.txt
 var banner []byte
 
-type AgentConfig struct {
-	Model                       string
-	APIKey                      string
-	RefreshUsageIntervalMinutes int
-}
+type (
+	AgentConfig struct {
+		Model                       string
+		APIKey                      string
+		RefreshUsageIntervalMinutes int
+	}
 
-type Agent struct {
-	config *AgentConfig
+	Agent struct {
+		config *AgentConfig
 
-	listener *net.UnixListener
-	worker   *UsageWorker
+		listener *net.UnixListener
+		worker   *UsageWorker
 
-	usageReceived chan int
-	cancel        context.CancelFunc
+		anthropicClient anthropic.Client
+		openAIClient    struct{}
 
-	wg *sync.WaitGroup
-}
+		usageReceived chan int
+		cancel        context.CancelFunc
+
+		wg *sync.WaitGroup
+	}
+
+	RiskLevel string
+)
+
+const (
+	RiskLevelUnknown RiskLevel = "unknown"
+	RiskLevelLow     RiskLevel = "low"
+)
 
 // NewAgent returns an Agent.
 // A Scrollwork Agent is responsible for handling requests to check the billing risk level of an AI Prompt.
@@ -52,12 +67,19 @@ func NewAgent(config *AgentConfig) *Agent {
 // Start starts the Scrollwork Agent.
 func (a *Agent) Start(ctx context.Context) error {
 	if !a.isUsingAnthropic() && !a.isUsingOpenAI() {
-		return fmt.Errorf("invalid AI Model: only OpenAI and Anthropic models are supported.")
+		return fmt.Errorf("failed to Start: LLM model must either be an OpenAI model or Anthropic model")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
-
 	a.cancel = cancel
+
+	if a.isUsingAnthropic() {
+		a.anthropicClient = anthropic.NewClient(option.WithAPIKey(a.config.APIKey))
+	}
+
+	if a.isUsingOpenAI() {
+		return fmt.Errorf("failed to Start: OpenAI is not supported at this time.")
+	}
 
 	// Configure unix socket listener
 	addr := net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"}
@@ -129,7 +151,7 @@ func (a *Agent) listen(ctx context.Context) {
 			}
 
 			log.Printf("Connection accepted")
-			go handleConnection(conn)
+			go a.handleConnection(conn)
 		}
 	}
 }
@@ -151,14 +173,37 @@ func (a *Agent) startupMessage() {
 	log.Printf("Using AI Model: %s.", a.config.Model)
 }
 
-func handleConnection(conn net.Conn) {
+func (a *Agent) handleConnection(conn net.Conn) {
+	defer conn.Close()
+	defer log.Printf("Connection closed")
+
 	// TODO:
 	// 1. parse the JSON received, split by \n
 	// 2. Validate. throw out invalid json
 	// 3. Count the tokens using model's APIs
 	// 4. Return tokens used and percentage of total quota used
 	// 5. Return a risk level of the request. Low = Low cost, Medium = Medium cost, High = High / Unknown cost. Costs are configurable
-	conn.Write([]byte(fmt.Sprintf("Hello. You currently have %d UncachedInputTokens left\n", 1)))
-	conn.Close()
-	log.Printf("Connection closed")
+
+	r, err := a.assesPrompt("Hello world")
+	if err != nil {
+		log.Printf("assesPrompt failed: %v", err)
+		return
+	}
+
+	conn.Write([]byte(fmt.Sprintf("Hello. You currently have %d UncachedInputTokens left.\nYour prompt has a risk level of %s", 1, r)))
+}
+
+// Asses determines the risk level of a given prompt.
+func (a *Agent) assesPrompt(prompt string) (RiskLevel, error) {
+	// TODO: Leverage the appropaite client's token counting functionality
+	switch {
+	case a.isUsingAnthropic():
+		log.Printf("Counting tokens for prompt %s", prompt)
+		return RiskLevelLow, nil
+	case a.isUsingOpenAI():
+		log.Printf("Counting tokens for prompt %s", prompt)
+		return RiskLevelUnknown, fmt.Errorf("OpenAI is not supported at this time")
+	default:
+		return RiskLevelUnknown, fmt.Errorf("unknown model")
+	}
 }
