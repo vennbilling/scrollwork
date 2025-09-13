@@ -83,7 +83,7 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	go func() {
 		defer a.wg.Done()
-		worker.start(ctx)
+		worker.start(ctx, a.config.RefreshUsageIntervalMinutes)
 	}()
 
 	return nil
