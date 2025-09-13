@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type usageWorker struct {
+type UsageWorker struct {
 	notifyChan chan int
 	ticker     *time.Ticker
 }
@@ -14,13 +14,13 @@ type usageWorker struct {
 // newUsageWorker creates a new [usageWorker].
 //
 // The usageWorker is responsible for fetching and storing the current token usage for a given organization.
-func newUsageWorker(notiferChan chan int) *usageWorker {
-	return &usageWorker{
+func newUsageWorker(notiferChan chan int) *UsageWorker {
+	return &UsageWorker{
 		notifyChan: notiferChan,
 	}
 }
 
-func (w *usageWorker) start(ctx context.Context, tickRate int) {
+func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	log.Printf("Scrollwork Usage Worker has started.")
 
 	for {
@@ -32,7 +32,7 @@ func (w *usageWorker) start(ctx context.Context, tickRate int) {
 	}
 }
 
-func (w *usageWorker) stop() {
+func (w *UsageWorker) Stop() {
 	if w.ticker != nil {
 		log.Printf("Stopping usage worker ticker...")
 		w.ticker.Stop()
