@@ -5,8 +5,6 @@ import (
 	"log"
 	"scrollwork/internal/llm"
 	"time"
-
-	"github.com/anthropics/anthropic-sdk-go"
 )
 
 type (
@@ -15,7 +13,7 @@ type (
 		workerReady   chan bool
 		ticker        *time.Ticker
 
-		anthropicClient anthropic.Client
+		anthropicClient *llm.AnthropicClient
 	}
 
 	UsageData struct {
@@ -36,7 +34,7 @@ func newUsageWorker(usageReceivedChan chan int, workerReadyChan chan bool) *Usag
 func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	log.Printf("Scrollwork Usage Worker starting...")
 	// Immediately fetch usage on start and notify
-	usage := w.fetchOrganizationUsage()
+	usage := w.fetchOrganizationUsage(ctx)
 	w.usageReceived <- usage.Tokens
 
 	w.workerReady <- true
@@ -49,7 +47,7 @@ func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	for {
 		select {
 		case <-ticker.C:
-			usage := w.fetchOrganizationUsage()
+			usage := w.fetchOrganizationUsage(ctx)
 			w.usageReceived <- usage.Tokens
 		case <-ctx.Done():
 			log.Printf("Scrollwork Usage Worker will be shutting down...")
@@ -67,10 +65,10 @@ func (w *UsageWorker) Stop() {
 	log.Printf("Scrollwork Usage Worker has shutdown.")
 }
 
-func (w *UsageWorker) fetchOrganizationUsage() UsageData {
+func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) UsageData {
 	log.Printf("Fetching latest usage")
 
-	tokens, err := llm.GetAnthropicOrganizationUsage(&w.anthropicClient)
+	tokens, err := w.anthropicClient.GetOrganizationUsage(ctx)
 	if err != nil {
 		log.Printf("fetchOrganizationUsage failed: %v", err)
 	}

@@ -9,9 +9,6 @@ import (
 	"sync"
 
 	_ "embed"
-
-	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
 //go:embed banner.txt
@@ -30,7 +27,7 @@ type (
 		listener *net.UnixListener
 		worker   *UsageWorker
 
-		anthropicClient anthropic.Client
+		anthropicClient *llm.AnthropicClient
 		openAIClient    struct{}
 
 		usageReceived chan int
@@ -82,7 +79,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	a.cancel = cancel
 
 	if llm.IsAnthropicModel(a.config.Model) {
-		anthropicClient := anthropic.NewClient(option.WithAPIKey(a.config.APIKey))
+		anthropicClient := llm.NewAnthropicClient(a.config.APIKey)
 		a.anthropicClient = anthropicClient
 		a.worker.anthropicClient = anthropicClient
 	}
@@ -163,7 +160,7 @@ func (a *Agent) listen(ctx context.Context) {
 			}
 
 			log.Printf("Connection accepted")
-			go a.handleConnection(conn)
+			go a.handleConnection(ctx, conn)
 		}
 	}
 }
@@ -177,7 +174,7 @@ func (a *Agent) startupMessage() {
 	log.Printf("Using AI Model: %s.", a.config.Model)
 }
 
-func (a *Agent) handleConnection(conn net.Conn) {
+func (a *Agent) handleConnection(ctx context.Context, conn net.Conn) {
 	defer conn.Close()
 	defer log.Printf("Connection closed")
 
@@ -188,7 +185,7 @@ func (a *Agent) handleConnection(conn net.Conn) {
 	// 4. Return tokens used and percentage of total quota used
 	// 5. Return a risk level of the request. Low = Low cost, Medium = Medium cost, High = High / Unknown cost. Costs are configurable
 
-	r, err := a.assesPrompt("Hello world")
+	r, err := a.assesPrompt(ctx, "Hello world")
 	if err != nil {
 		log.Printf("assesPrompt failed: %v", err)
 		return
@@ -209,11 +206,11 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 }
 
 // Asses determines the risk level of a given prompt.
-func (a *Agent) assesPrompt(prompt string) (RiskLevel, error) {
+func (a *Agent) assesPrompt(ctx context.Context, prompt string) (RiskLevel, error) {
 	switch {
 	case llm.IsAnthropicModel(a.config.Model):
 		log.Printf("Counting tokens for prompt %s", prompt)
-		_, err := llm.CountAnthropicTokens(&a.anthropicClient, prompt)
+		_, err := a.anthropicClient.CountTokens(ctx, prompt)
 		if err != nil {
 			return RiskLevelUnknown, err
 		}
