@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 	"time"
+
+	"github.com/anthropics/anthropic-sdk-go"
 )
 
 type (
@@ -11,6 +13,8 @@ type (
 		usageReceived chan int
 		workerReady   chan bool
 		ticker        *time.Ticker
+
+		anthropicClient anthropic.Client
 	}
 
 	UsageData struct {
@@ -31,7 +35,7 @@ func newUsageWorker(usageReceivedChan chan int, workerReadyChan chan bool) *Usag
 func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	log.Printf("Scrollwork Usage Worker starting...")
 	// Immediately fetch usage on start and notify
-	usage := w.fetchUsage()
+	usage := w.fetchOrganizationUsage()
 	w.usageReceived <- usage.Tokens
 
 	w.workerReady <- true
@@ -44,7 +48,7 @@ func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	for {
 		select {
 		case <-ticker.C:
-			usage := w.fetchUsage()
+			usage := w.fetchOrganizationUsage()
 			w.usageReceived <- usage.Tokens
 		case <-ctx.Done():
 			log.Printf("Scrollwork Usage Worker will be shutting down...")
@@ -62,7 +66,7 @@ func (w *UsageWorker) Stop() {
 	log.Printf("Scrollwork Usage Worker has shutdown.")
 }
 
-func (w *UsageWorker) fetchUsage() UsageData {
+func (w *UsageWorker) fetchOrganizationUsage() UsageData {
 	log.Printf("Fetching latest usage")
 	return UsageData{Tokens: 0}
 }

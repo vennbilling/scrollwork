@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"strings"
+	"scrollwork/internal/llm"
 	"sync"
 
 	_ "embed"
@@ -58,8 +58,12 @@ func NewAgent(config *AgentConfig) *Agent {
 	usageReceived := make(chan int, 1)
 	workerReady := make(chan bool, 1)
 
+	worker := newUsageWorker(usageReceived, workerReady)
+
 	return &Agent{
 		config: config,
+
+		worker: worker,
 
 		usageReceived: usageReceived,
 		workerReady:   workerReady,
@@ -69,27 +73,29 @@ func NewAgent(config *AgentConfig) *Agent {
 
 // Start starts the Scrollwork Agent.
 func (a *Agent) Start(ctx context.Context) error {
-	if !a.isUsingAnthropic() && !a.isUsingOpenAI() {
+	supportedLLMModel := llm.IsAnthropicModel(a.config.Model) || llm.IsOpenAIModel(a.config.Model)
+	if !supportedLLMModel {
 		return fmt.Errorf("failed to Start: LLM model must either be an OpenAI model or Anthropic model")
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 	a.cancel = cancel
 
-	if a.isUsingAnthropic() {
-		a.anthropicClient = anthropic.NewClient(option.WithAPIKey(a.config.APIKey))
+	if llm.IsAnthropicModel(a.config.Model) {
+		anthropicClient := anthropic.NewClient(option.WithAPIKey(a.config.APIKey))
+		a.anthropicClient = anthropicClient
+		a.worker.anthropicClient = anthropicClient
 	}
 
-	if a.isUsingOpenAI() {
+	// TODO: Remove this check once we have OpenAI integrated
+	if llm.IsOpenAIModel(a.config.Model) {
 		return fmt.Errorf("failed to Start: OpenAI is not supported at this time.")
 	}
 
 	a.startupMessage()
 
 	// Configure worker to periodically fetch current usage
-	a.worker = newUsageWorker(a.usageReceived, a.workerReady)
 	a.wg.Add(1)
-
 	go func() {
 		defer a.wg.Done()
 		a.worker.Start(ctx, a.config.RefreshUsageIntervalMinutes)
@@ -97,7 +103,6 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	// Handle updates to current usage
 	a.wg.Add(1)
-
 	go func() {
 		defer a.wg.Done()
 		a.processUsageUpdates(ctx)
@@ -163,14 +168,6 @@ func (a *Agent) listen(ctx context.Context) {
 	}
 }
 
-func (a *Agent) isUsingAnthropic() bool {
-	return strings.Contains(a.config.Model, "claude-")
-}
-
-func (a *Agent) isUsingOpenAI() bool {
-	return strings.Contains(a.config.Model, "gpt-") || strings.Contains(a.config.Model, "text-")
-}
-
 func (a *Agent) startupMessage() {
 	fmt.Println(string(banner))
 	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
@@ -215,11 +212,10 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 func (a *Agent) assesPrompt(prompt string) (RiskLevel, error) {
 	// TODO: Leverage the appropaite client's token counting functionality
 	switch {
-	case a.isUsingAnthropic():
+	case llm.IsAnthropicModel(a.config.Model):
 		log.Printf("Counting tokens for prompt %s", prompt)
 		return RiskLevelLow, nil
-	case a.isUsingOpenAI():
-		log.Printf("Counting tokens for prompt %s", prompt)
+	case llm.IsOpenAIModel(a.config.Model):
 		return RiskLevelUnknown, fmt.Errorf("OpenAI is not supported at this time")
 	default:
 		return RiskLevelUnknown, fmt.Errorf("unknown model")
