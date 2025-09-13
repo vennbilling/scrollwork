@@ -68,9 +68,9 @@ func (w *UsageWorker) Stop() {
 func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) UsageData {
 	log.Printf("Fetching latest usage")
 
-	tokens, err := w.anthropicClient.GetOrganizationUsage(ctx)
+	tokens, err := w.anthropicClient.GetOrganizationMessageUsageReport(ctx)
 	if err != nil {
-		log.Printf("fetchOrganizationUsage failed: %v", err)
+		log.Fatalf("Failed to fetch Organization Usage: %v", err)
 	}
 
 	return UsageData{Tokens: tokens}

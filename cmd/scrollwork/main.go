@@ -17,6 +17,7 @@ import (
 var (
 	model              string
 	apiKey             string
+	adminKey           string
 	refreshRateMinutes int
 )
 
@@ -28,7 +29,10 @@ type usageWorker struct {
 
 func init() {
 	flag.StringVar(&model, "model", "", "AI Model")
+
+	// TODO: These are assuming Anthropic keys. We should handle OpenAPI differently
 	flag.StringVar(&apiKey, "apiKey", "", "API Key")
+	flag.StringVar(&adminKey, "adminKey", "", "Admin Key")
 	flag.IntVar(&refreshRateMinutes, "refreshRate", 1, "Refresh rate in minutes for fetching organization usage")
 }
 
@@ -43,6 +47,10 @@ func main() {
 		log.Fatal("API Key is required. Use --apiKey to set it.")
 	}
 
+	if adminKey == "" {
+		log.Fatal("Admin Key is required. Use --adminkey to set it.")
+	}
+
 	if refreshRateMinutes <= 0 {
 		log.Fatal("Refresh rate must be a positive.")
 	}
@@ -53,6 +61,7 @@ func main() {
 	config := &scrollwork.AgentConfig{
 		Model:                       model,
 		APIKey:                      apiKey,
+		AdminKey:                    adminKey,
 		RefreshUsageIntervalMinutes: refreshRateMinutes,
 	}
 	agent := scrollwork.NewAgent(config)

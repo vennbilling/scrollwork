@@ -18,6 +18,7 @@ type (
 	AgentConfig struct {
 		Model                       string
 		APIKey                      string
+		AdminKey                    string
 		RefreshUsageIntervalMinutes int
 	}
 
@@ -79,7 +80,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	a.cancel = cancel
 
 	if llm.IsAnthropicModel(a.config.Model) {
-		anthropicClient := llm.NewAnthropicClient(a.config.APIKey)
+		anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey)
 		a.anthropicClient = anthropicClient
 		a.worker.anthropicClient = anthropicClient
 	}
