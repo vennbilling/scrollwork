@@ -3,6 +3,7 @@ package scrollwork
 import (
 	"context"
 	"log"
+	"scrollwork/internal/llm"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
@@ -68,5 +69,11 @@ func (w *UsageWorker) Stop() {
 
 func (w *UsageWorker) fetchOrganizationUsage() UsageData {
 	log.Printf("Fetching latest usage")
-	return UsageData{Tokens: 0}
+
+	tokens, err := llm.GetAnthropicOrganizationUsage(&w.anthropicClient)
+	if err != nil {
+		log.Printf("fetchOrganizationUsage failed: %v", err)
+	}
+
+	return UsageData{Tokens: tokens}
 }

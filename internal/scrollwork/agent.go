@@ -194,7 +194,7 @@ func (a *Agent) handleConnection(conn net.Conn) {
 		return
 	}
 
-	conn.Write([]byte(fmt.Sprintf("Hello. You currently have %d UncachedInputTokens left.\nYour prompt has a risk level of %s", 1, r)))
+	conn.Write([]byte(fmt.Sprintf("Your prompt has a risk level of %s", r)))
 }
 
 func (a *Agent) processUsageUpdates(ctx context.Context) {
@@ -210,10 +210,14 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 
 // Asses determines the risk level of a given prompt.
 func (a *Agent) assesPrompt(prompt string) (RiskLevel, error) {
-	// TODO: Leverage the appropaite client's token counting functionality
 	switch {
 	case llm.IsAnthropicModel(a.config.Model):
 		log.Printf("Counting tokens for prompt %s", prompt)
+		_, err := llm.CountAnthropicTokens(&a.anthropicClient, prompt)
+		if err != nil {
+			return RiskLevelUnknown, err
+		}
+
 		return RiskLevelLow, nil
 	case llm.IsOpenAIModel(a.config.Model):
 		return RiskLevelUnknown, fmt.Errorf("OpenAI is not supported at this time")
