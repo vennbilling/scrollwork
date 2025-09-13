@@ -25,7 +25,7 @@ type Agent struct {
 	config *AgentConfig
 
 	listener *net.UnixListener
-	worker   UsageWorker
+	worker   *UsageWorker
 
 	usage  chan int
 	done   chan os.Signal
@@ -71,7 +71,7 @@ func (a *Agent) Start(ctx context.Context) error {
 	a.listener = listener
 	a.wg.Add(1)
 
-	worker := newUsageWorker(a.usage)
+	a.worker = newUsageWorker(a.usage)
 	a.wg.Add(1)
 
 	a.startupMessage()
@@ -83,7 +83,7 @@ func (a *Agent) Start(ctx context.Context) error {
 
 	go func() {
 		defer a.wg.Done()
-		worker.Start(ctx, a.config.RefreshUsageIntervalMinutes)
+		a.worker.Start(ctx, a.config.RefreshUsageIntervalMinutes)
 	}()
 
 	return nil
