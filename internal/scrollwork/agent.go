@@ -34,6 +34,7 @@ type (
 		openAIClient    struct{}
 
 		usageReceived chan int
+		workerReady   chan bool
 		cancel        context.CancelFunc
 
 		wg *sync.WaitGroup
@@ -54,12 +55,14 @@ const (
 func NewAgent(config *AgentConfig) *Agent {
 	var wg sync.WaitGroup
 
-	usage := make(chan int, 1)
+	usageReceived := make(chan int, 1)
+	workerReady := make(chan bool, 1)
 
 	return &Agent{
 		config: config,
 
-		usageReceived: usage,
+		usageReceived: usageReceived,
+		workerReady:   workerReady,
 		wg:            &wg,
 	}
 }
@@ -81,28 +84,36 @@ func (a *Agent) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to Start: OpenAI is not supported at this time.")
 	}
 
-	// Configure unix socket listener
-	addr := net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"}
-	listener, err := net.ListenUnix("unix", &addr)
-	if err != nil {
-		return err
-	}
-
-	a.listener = listener
-	a.wg.Add(1)
-
-	a.worker = newUsageWorker(a.usageReceived)
-	a.wg.Add(1)
-
 	a.startupMessage()
+
+	// Configure worker to periodically fetch current usage
+	a.worker = newUsageWorker(a.usageReceived, a.workerReady)
+	a.wg.Add(1)
 
 	go func() {
 		defer a.wg.Done()
 		a.worker.Start(ctx, a.config.RefreshUsageIntervalMinutes)
 	}()
 
-	// Wait until worker is ready. When a worker starts, it will also make a request to get the latest usage
-	<-a.usageReceived
+	// Handle updates to current usage
+	a.wg.Add(1)
+
+	go func() {
+		defer a.wg.Done()
+		a.processUsageUpdates(ctx)
+	}()
+
+	// Wait until worker is ready before we start the UNIX listener
+	<-a.workerReady
+
+	// Configure unix socket listener
+	addr := net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"}
+	listener, err := net.ListenUnix("unix", &addr)
+	if err != nil {
+		return err
+	}
+	a.listener = listener
+	a.wg.Add(1)
 
 	go func() {
 		defer a.wg.Done()
@@ -126,6 +137,7 @@ func (a *Agent) Stop() error {
 	// Shut down the usage worker
 	a.worker.Stop()
 
+	// Wait for everything else to clean up
 	a.wg.Wait()
 
 	return nil
@@ -133,16 +145,11 @@ func (a *Agent) Stop() error {
 
 func (a *Agent) listen(ctx context.Context) {
 	log.Printf("Scrollwork Agent socket has started and is now ready for connections.")
-
 	for {
 		select {
 		case <-ctx.Done():
 			log.Printf("Scrollwork Agent socket closed")
 			return
-		case <-a.usageReceived:
-			log.Printf("Organization usage updated")
-			// TODO: Should sync this with a mutex
-			break
 		default:
 			conn, err := a.listener.AcceptUnix()
 			if err != nil {
@@ -191,6 +198,17 @@ func (a *Agent) handleConnection(conn net.Conn) {
 	}
 
 	conn.Write([]byte(fmt.Sprintf("Hello. You currently have %d UncachedInputTokens left.\nYour prompt has a risk level of %s", 1, r)))
+}
+
+func (a *Agent) processUsageUpdates(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-a.usageReceived:
+			log.Printf("Received updated usage stats")
+		}
+	}
 }
 
 // Asses determines the risk level of a given prompt.

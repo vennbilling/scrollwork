@@ -6,28 +6,45 @@ import (
 	"time"
 )
 
-type UsageWorker struct {
-	usageChan chan int
-	ticker    *time.Ticker
-}
+type (
+	UsageWorker struct {
+		usageReceived chan int
+		workerReady   chan bool
+		ticker        *time.Ticker
+	}
+
+	UsageData struct {
+		Tokens int
+	}
+)
 
 // newUsageWorker creates a new [usageWorker].
 //
 // The usageWorker is responsible for fetching and storing the current token usage for a given organization.
-func newUsageWorker(usageReceivedChan chan int) *UsageWorker {
+func newUsageWorker(usageReceivedChan chan int, workerReadyChan chan bool) *UsageWorker {
 	return &UsageWorker{
-		usageChan: usageReceivedChan,
+		usageReceived: usageReceivedChan,
+		workerReady:   workerReadyChan,
 	}
 }
 
 func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
-	log.Printf("Scrollwork Usage Worker has started.")
+	log.Printf("Scrollwork Usage Worker starting...")
+	// Immediately fetch usage on start and notify
+	usage := w.fetchUsage()
+	w.usageReceived <- usage.Tokens
 
-	// Immediately fetch usage on start
-	w.fetchUsage()
+	w.workerReady <- true
+
+	ticker := time.NewTicker(time.Duration(tickRate) * time.Minute)
+	w.ticker = ticker
+
+	log.Printf("Scrollwork Usage Worker has started")
 
 	for {
 		select {
+		case <-ticker.C:
+			w.fetchUsage()
 		case <-ctx.Done():
 			log.Printf("Scrollwork Usage Worker will be shutting down...")
 			return
@@ -44,8 +61,7 @@ func (w *UsageWorker) Stop() {
 	log.Printf("Scrollwork Usage Worker has shutdown.")
 }
 
-func (w *UsageWorker) fetchUsage() {
+func (w *UsageWorker) fetchUsage() UsageData {
 	log.Printf("Fetching latest usage")
-
-	w.usageChan <- 1
+	return UsageData{Tokens: 0}
 }
