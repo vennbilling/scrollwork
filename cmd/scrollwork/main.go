@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -37,13 +36,15 @@ func main() {
 	flag.Parse()
 
 	if model == "" {
-		fmt.Println("AI Model is required. Use --model to set it.")
-		os.Exit(1)
+		log.Fatal("AI Model is required. Use --model to set it.")
 	}
 
 	if apiKey == "" {
-		fmt.Println("API Key is required. Use --apiKey to set it.")
-		os.Exit(1)
+		log.Fatal("API Key is required. Use --apiKey to set it.")
+	}
+
+	if refreshRateMinutes <= 0 {
+		log.Fatal("Refresh rate must be a positive.")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
