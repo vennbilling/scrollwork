@@ -4,64 +4,88 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 )
 
-type AnthropicClient struct {
-	messagesClient *anthropic.Client
-	adminClient    *anthropic.Client
-	version        string
-}
+type (
+	AnthropicClient struct {
+		model          string
+		messagesClient *anthropic.Client
+		adminClient    *anthropic.Client
+		version        string
+	}
+
+	usageData struct {
+		StartingAt string         `json:"starting_at"`
+		EndingAt   string         `json:"ending_at"`
+		Results    []messageUsage `json:"results"`
+	}
+
+	messageUsage struct {
+		Model               string `json:"model"`
+		UncachedInputTokens int    `json:"uncached_input_tokens"`
+	}
+)
 
 const (
+	anthropicVersion                   = "2023-06-01"
 	organizationMessagsUsageReportPath = "/v1/organizations/usage_report/messages"
 )
 
-func NewAnthropicClient(apiKey string, adminKey string) *AnthropicClient {
+func NewAnthropicClient(apiKey string, adminKey string, model string) *AnthropicClient {
 	messagesClient := anthropic.NewClient(option.WithAPIKey(apiKey))
 	adminClient := anthropic.NewClient(option.WithAPIKey(adminKey))
 
 	return &AnthropicClient{
 		messagesClient: &messagesClient,
 		adminClient:    &adminClient,
-		version:        "2023-06-01",
+		version:        anthropicVersion,
+		model:          model,
 	}
 }
 
-// GetOrganizationMessageUsageReport fetches the current usage for all messages
-// FIXME: Usage limit ins't some flat number based on the organization. Usage is based on a set of messages, specifically inputs.
-// For each message provided, we'll need to compare against the current organization input usage for the model and asses a risk
-// ::ORGANIZATION USAGE::
-// 1. Fetch the usage report https://docs.anthropic.com/en/api/admin-api/claude-code/get-claude-code-usage-report and find the model we are using
-// 2. Determine how many input MToks we have currently used.
-// 3. Store current cost on a struct. This will be used for assesments i.e. a +5% increase could be considered low but a +75% increase could be considered high
+// GetOrganizationMessageUsageReport fetches the current number of uncached input tokens for all messages for a given model.
 func (a *AnthropicClient) GetOrganizationMessageUsageReport(ctx context.Context) (int, error) {
+	inputTokens := 0
+	startingAt := time.Now().Truncate(24 * time.Hour).Format(time.RFC3339)
+	endingAt := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour).Format(time.RFC3339)
+
 	if a.adminClient == nil {
-		return 0, fmt.Errorf("GetOrganizationUsage failed: anthropic admin client is nil")
+		return inputTokens, fmt.Errorf("GetOrganizationUsage failed: anthropic admin client is nil")
 	}
 
-	// TODO: Unmarshall this properly
-	u := struct {
-		Data []struct{} `json:"data"`
+	d := struct {
+		Data []usageData `json:"data"`
 	}{}
 
 	q := url.Values{}
-	q.Add("starting_at", "2025-08-01T00:00:00Z")
-	q.Add("group_by[]", "model")
+	q.Add("starting_at", startingAt)
+	q.Add("ending_at", endingAt)
 	qs := q.Encode()
 
 	path := organizationMessagsUsageReportPath + "?" + qs
 
-	err := a.adminClient.Get(ctx, path, nil, &u)
+	err := a.adminClient.Get(ctx, path, nil, &d)
 	if err != nil {
-		return 0, err
+		return inputTokens, err
 	}
 
-	fmt.Println(u)
+	if len(d.Data) == 0 {
+		return inputTokens, nil
+	}
 
-	return 0, nil
+	for _, d := range d.Data {
+		for _, result := range d.Results {
+			if result.Model == a.model {
+				inputTokens += result.UncachedInputTokens
+			}
+		}
+	}
+
+	return inputTokens, nil
 }
 
 func (a *AnthropicClient) CountTokens(ctx context.Context, prompt string) (int, error) {
