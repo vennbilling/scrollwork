@@ -69,12 +69,13 @@ func (a *AnthropicClient) HealthCheck(ctx context.Context) error {
 // GetOrganizationMessageUsageReport fetches the current number of uncached input tokens for all messages for a given model.
 func (a *AnthropicClient) GetOrganizationMessageUsageReport(ctx context.Context) (int, error) {
 	inputTokens := 0
-	startingAt := time.Now().Truncate(24 * time.Hour).Format(time.RFC3339)
-	endingAt := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour).Format(time.RFC3339)
 
 	if a.adminClient == nil {
-		return inputTokens, fmt.Errorf("GetOrganizationUsage failed: anthropic admin client is nil")
+		return inputTokens, fmt.Errorf("GetOrganizationMessageUsageReport failed: anthropic admin client is nil")
 	}
+
+	startingAt := time.Now().Truncate(24 * time.Hour).Format(time.RFC3339)
+	endingAt := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour).Format(time.RFC3339)
 
 	d := struct {
 		Data []usageData `json:"data"`
