@@ -32,6 +32,7 @@ type (
 
 const (
 	anthropicVersion                   = "2023-06-01"
+	organizationInfoPath               = "/v1/organizations/me"
 	organizationMessagsUsageReportPath = "/v1/organizations/usage_report/messages"
 )
 
@@ -45,6 +46,28 @@ func NewAnthropicClient(apiKey string, adminKey string, model string) *Anthropic
 		version:        anthropicVersion,
 		model:          model,
 	}
+}
+
+// HealthCheck fetches the current organization. It is used to verify the API Key and AnthropicClient.
+func (a *AnthropicClient) HealthCheck(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+	if a.adminClient == nil {
+		return fmt.Errorf("HealthCheck failed: anthropic admin client is nil")
+	}
+
+	d := struct {
+		ID string `json:"id"`
+	}{}
+
+	err := a.adminClient.Get(ctx, organizationInfoPath, nil, &d)
+	if err != nil {
+		return err
+	}
+
+	cancel()
+
+	return nil
 }
 
 // GetOrganizationMessageUsageReport fetches the current number of uncached input tokens for all messages for a given model.

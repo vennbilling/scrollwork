@@ -33,6 +33,7 @@ func newUsageWorker(usageReceivedChan chan int, workerReadyChan chan bool) *Usag
 
 func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	log.Printf("Scrollwork Usage Worker starting...")
+
 	// Immediately fetch usage on start and notify
 	usage := w.fetchOrganizationUsage(ctx)
 	w.usageReceived <- usage.Tokens
@@ -47,6 +48,7 @@ func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
 	for {
 		select {
 		case <-ticker.C:
+			log.Printf("Fetching latest usage")
 			usage := w.fetchOrganizationUsage(ctx)
 			w.usageReceived <- usage.Tokens
 		case <-ctx.Done():
@@ -66,8 +68,6 @@ func (w *UsageWorker) Stop() {
 }
 
 func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) UsageData {
-	log.Printf("Fetching latest usage")
-
 	tokens, err := w.anthropicClient.GetOrganizationMessageUsageReport(ctx)
 	if err != nil {
 		log.Fatalf("Failed to fetch Organization Usage: %v", err)

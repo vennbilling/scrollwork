@@ -83,6 +83,11 @@ func (a *Agent) Start(ctx context.Context) error {
 		anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, a.config.Model)
 		a.anthropicClient = anthropicClient
 		a.worker.anthropicClient = anthropicClient
+
+		// Verify the API clients
+		if err := anthropicClient.HealthCheck(ctx); err != nil {
+			return fmt.Errorf("failed to Start: %v", err)
+		}
 	}
 
 	// TODO: Remove this check once we have OpenAI integrated
@@ -172,6 +177,7 @@ func (a *Agent) startupMessage() {
 	fmt.Println("https://github.com/vennbilling/scrollwork")
 	fmt.Println("\n\n")
 
+	log.Printf("Starting Scrollwork Agent")
 	log.Printf("Using AI Model: %s.", a.config.Model)
 }
 
