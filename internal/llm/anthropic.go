@@ -50,8 +50,6 @@ func NewAnthropicClient(apiKey string, adminKey string, model string) *Anthropic
 
 // HealthCheck fetches the current organization. It is used to verify the API Key and AnthropicClient.
 func (a *AnthropicClient) HealthCheck(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-
 	if a.adminClient == nil {
 		return fmt.Errorf("HealthCheck failed: anthropic admin client is nil")
 	}
@@ -64,8 +62,6 @@ func (a *AnthropicClient) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	cancel()
 
 	return nil
 }

@@ -2,18 +2,25 @@ package scrollwork
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"scrollwork/internal/llm"
 	"time"
 )
 
 type (
-	UsageWorker struct {
-		usageReceived chan int
-		workerReady   chan bool
-		ticker        *time.Ticker
+	UsageWorkerConfig struct {
+		Model         string
+		UsageReceived chan int
+		WorkerReady   chan bool
+		TickRate      int
+	}
 
-		anthropicClient *llm.AnthropicClient
+	UsageWorker struct {
+		config *UsageWorkerConfig
+
+		ticker          *time.Ticker
+		AnthropicClient *llm.AnthropicClient
 	}
 
 	UsageData struct {
@@ -24,36 +31,47 @@ type (
 // newUsageWorker creates a new [usageWorker].
 //
 // The usageWorker is responsible for fetching and storing the current token usage for a given organization.
-func newUsageWorker(usageReceivedChan chan int, workerReadyChan chan bool) *UsageWorker {
+func newUsageWorker(config *UsageWorkerConfig) *UsageWorker {
 	return &UsageWorker{
-		usageReceived: usageReceivedChan,
-		workerReady:   workerReadyChan,
+		config: config,
 	}
 }
 
-func (w *UsageWorker) Start(ctx context.Context, tickRate int) {
-	log.Printf("Scrollwork Usage Worker starting...")
+func (w *UsageWorker) Start(ctx context.Context) error {
+	if err := w.healthCheck(ctx); err != nil {
+		return err
+	}
 
-	// Immediately fetch usage on start and notify
-	usage := w.fetchOrganizationUsage(ctx)
-	w.usageReceived <- usage.Tokens
+	w.config.WorkerReady <- true
 
-	w.workerReady <- true
+	return nil
+}
 
-	ticker := time.NewTicker(time.Duration(tickRate) * time.Minute)
+func (w *UsageWorker) Run(ctx context.Context) error {
+	// Fetch the latest usage snapshot for the organization
+	usage, err := w.fetchOrganizationUsage(ctx)
+	if err != nil {
+		return fmt.Errorf("Scrollwork Usage Worker failed to run: %v", err)
+	}
+
+	w.config.UsageReceived <- usage.Tokens
+
+	ticker := time.NewTicker(time.Duration(w.config.TickRate) * time.Minute)
 	w.ticker = ticker
-
-	log.Printf("Scrollwork Usage Worker has started")
 
 	for {
 		select {
-		case <-ticker.C:
-			log.Printf("Fetching latest usage")
-			usage := w.fetchOrganizationUsage(ctx)
-			w.usageReceived <- usage.Tokens
+		case <-w.ticker.C:
+			log.Printf("Scrollwork Usage Worker is fetching latest usage...")
+			usage, err := w.fetchOrganizationUsage(ctx)
+			if err != nil {
+				return fmt.Errorf("fetchOrganizationUsage failed: %v", err)
+			}
+
+			w.config.UsageReceived <- usage.Tokens
 		case <-ctx.Done():
 			log.Printf("Scrollwork Usage Worker will be shutting down...")
-			return
+			return ctx.Err()
 		}
 	}
 }
@@ -67,11 +85,32 @@ func (w *UsageWorker) Stop() {
 	log.Printf("Scrollwork Usage Worker has shutdown.")
 }
 
-func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) UsageData {
-	tokens, err := w.anthropicClient.GetOrganizationMessageUsageReport(ctx)
-	if err != nil {
-		log.Fatalf("Failed to fetch Organization Usage: %v", err)
+func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (UsageData, error) {
+	if llm.IsOpenAIModel(w.config.Model) {
+		return UsageData{}, fmt.Errorf("fetchOrganizationUsage failed: OpenAI is not supported")
 	}
 
-	return UsageData{Tokens: tokens}
+	tokens, err := w.AnthropicClient.GetOrganizationMessageUsageReport(ctx)
+	if err != nil {
+		return UsageData{}, fmt.Errorf("Failed to fetchOrganizationUsage: %v", err)
+	}
+
+	return UsageData{Tokens: tokens}, nil
+}
+
+func (w *UsageWorker) healthCheck(ctx context.Context) error {
+	switch {
+	case llm.IsAnthropicModel(w.config.Model):
+		if w.AnthropicClient == nil {
+			return fmt.Errorf("healthCheck failed: AnthropicClient was not configured")
+		}
+
+		if err := w.AnthropicClient.HealthCheck(ctx); err != nil {
+			return fmt.Errorf("healthCheck failed: %v", err)
+		}
+	case llm.IsOpenAIModel(w.config.Model):
+		return fmt.Errorf("healthCheck failed: LLM model %s is not supported", w.config.Model)
+	}
+
+	return nil
 }

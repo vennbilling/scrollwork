@@ -64,14 +64,23 @@ func main() {
 		AdminKey:                    adminKey,
 		RefreshUsageIntervalMinutes: refreshRateMinutes,
 	}
-	agent := scrollwork.NewAgent(config)
+	agent, err := scrollwork.NewAgent(config)
+	if err != nil {
+		log.Fatalf("Scrollwork Agent could be initialized: %v", err)
+	}
 
 	if err := agent.Start(ctx); err != nil {
 		log.Fatalf("Scrollwork Agent could not start: %v", err)
 	}
 
-	<-ctx.Done()
-	log.Println("Shutdown signal received, Scrollwork is shutting down...")
+	if err := agent.Run(ctx); err != nil {
+		log.Fatalf("Scrollwork Agent failed to run: %v", err)
+	}
+
+	select {
+	case <-ctx.Done():
+		log.Println("Shutdown signal received, Scrollwork is shutting down...")
+	}
 
 	if err := agent.Stop(); err != nil {
 		log.Fatalf("Scrollwork Agent failed to shut down: %v", err)

@@ -7,6 +7,7 @@ import (
 	"net"
 	"scrollwork/internal/llm"
 	"sync"
+	"time"
 
 	_ "embed"
 )
@@ -33,7 +34,7 @@ type (
 
 		usageReceived chan int
 		workerReady   chan bool
-		cancel        context.CancelFunc
+		shutdown      context.CancelFunc
 
 		wg *sync.WaitGroup
 	}
@@ -50,13 +51,24 @@ const (
 // A Scrollwork Agent is responsible for handling requests to check the billing risk level of an AI Prompt.
 // It also spins up a worker that periodically checks and syncs an organization's current usage.
 // This usage is used when calculating the risk of a AI Prompt.
-func NewAgent(config *AgentConfig) *Agent {
-	var wg sync.WaitGroup
+func NewAgent(config *AgentConfig) (*Agent, error) {
+	if config.Model == "" {
+		return nil, fmt.Errorf("NewAgent failed: missing LLM model")
+	}
 
+	var wg sync.WaitGroup
 	usageReceived := make(chan int, 1)
 	workerReady := make(chan bool, 1)
 
-	worker := newUsageWorker(usageReceived, workerReady)
+	workerConfig := &UsageWorkerConfig{
+		Model:         config.Model,
+		UsageReceived: usageReceived,
+		WorkerReady:   workerReady,
+		TickRate:      config.RefreshUsageIntervalMinutes,
+	}
+
+	// An agent always has a usage worker
+	worker := newUsageWorker(workerConfig)
 
 	return &Agent{
 		config: config,
@@ -66,7 +78,7 @@ func NewAgent(config *AgentConfig) *Agent {
 		usageReceived: usageReceived,
 		workerReady:   workerReady,
 		wg:            &wg,
-	}
+	}, nil
 }
 
 // Start starts the Scrollwork Agent.
@@ -76,32 +88,55 @@ func (a *Agent) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to Start: LLM model must either be an OpenAI model or Anthropic model")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	a.cancel = cancel
-
-	if llm.IsAnthropicModel(a.config.Model) {
-		anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, a.config.Model)
-		a.anthropicClient = anthropicClient
-		a.worker.anthropicClient = anthropicClient
-
-		// Verify the API clients
-		if err := anthropicClient.HealthCheck(ctx); err != nil {
-			return fmt.Errorf("failed to Start: %v", err)
-		}
-	}
-
 	// TODO: Remove this check once we have OpenAI integrated
 	if llm.IsOpenAIModel(a.config.Model) {
 		return fmt.Errorf("failed to Start: OpenAI is not supported at this time.")
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
+
+	if llm.IsAnthropicModel(a.config.Model) {
+		anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, a.config.Model)
+		a.anthropicClient = anthropicClient
+		a.worker.AnthropicClient = anthropicClient
+	}
+
 	a.startupMessage()
 
-	// Configure worker to periodically fetch current usage
+	// Startup the Usage Worker
+	log.Printf("Scrollwork Usage Worker starting up...")
+	workerStartCtx, workerStartCancel := context.WithTimeout(ctx, 5*time.Second)
+	defer workerStartCancel()
+	a.worker.Start(workerStartCtx)
+
+	// Wait until worker is ready to run before we start the UNIX listener
+	select {
+	case <-workerStartCtx.Done():
+		return fmt.Errorf("Scrollwork Usage Worker failed to startup: %v", workerStartCtx.Err())
+
+	case <-a.workerReady:
+		log.Printf("Scrollwork Usage Worker is healthy.")
+		workerStartCancel()
+	}
+
+	a.shutdown = cancel
+
+	return nil
+}
+
+func (a *Agent) Run(ctx context.Context) error {
+	if a.worker == nil {
+		return fmt.Errorf("Scrollwork Agent failed to start: Usage Worker not configured")
+	}
+
+	// Run usage Worker
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		a.worker.Start(ctx, a.config.RefreshUsageIntervalMinutes)
+		err := a.worker.Run(ctx)
+		if err != nil {
+			log.Printf("Scrollwork Usage Worker stopped running: %v", err)
+		}
 	}()
 
 	// Handle updates to current usage
@@ -111,8 +146,7 @@ func (a *Agent) Start(ctx context.Context) error {
 		a.processUsageUpdates(ctx)
 	}()
 
-	// Wait until worker is ready before we start the UNIX listener
-	<-a.workerReady
+	log.Printf("Scrollwork Usage Worker is now running.")
 
 	// Configure unix socket listener
 	addr := net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"}
@@ -128,15 +162,12 @@ func (a *Agent) Start(ctx context.Context) error {
 		a.listen(ctx)
 	}()
 
+	log.Printf("Scrollwork Agent is now running and ready to accept connections.")
 	return nil
 }
 
 // Stop stops the Scrollwork Agent.
 func (a *Agent) Stop() error {
-	if a.cancel != nil {
-		a.cancel()
-	}
-
 	// Shut down the UNIX socket
 	if a.listener != nil {
 		a.listener.Close()
@@ -148,11 +179,14 @@ func (a *Agent) Stop() error {
 	// Wait for everything else to clean up
 	a.wg.Wait()
 
+	if a.shutdown != nil {
+		a.shutdown()
+	}
+
 	return nil
 }
 
 func (a *Agent) listen(ctx context.Context) {
-	log.Printf("Scrollwork Agent socket has started and is now ready for connections.")
 	for {
 		select {
 		case <-ctx.Done():
@@ -177,8 +211,8 @@ func (a *Agent) startupMessage() {
 	fmt.Println("https://github.com/vennbilling/scrollwork")
 	fmt.Println("\n\n")
 
-	log.Printf("Starting Scrollwork Agent")
-	log.Printf("Using AI Model: %s.", a.config.Model)
+	fmt.Println("Using LLM Model:", a.config.Model)
+	fmt.Println("\n")
 }
 
 func (a *Agent) handleConnection(ctx context.Context, conn net.Conn) {
@@ -206,8 +240,8 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case inputTokens := <-a.usageReceived:
-			log.Printf("Received updated usage stats for model %s: Uncached Input Tokens: %d", a.config.Model, inputTokens)
+		case <-a.usageReceived:
+			break
 		}
 	}
 }
