@@ -36,6 +36,8 @@ type (
 		workerReady   chan bool
 		shutdown      context.CancelFunc
 
+		currentUsage Usage
+
 		wg *sync.WaitGroup
 	}
 
@@ -78,6 +80,7 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 		usageReceived: usageReceived,
 		workerReady:   workerReady,
 		wg:            &wg,
+		currentUsage:  Usage{},
 	}, nil
 }
 
@@ -218,10 +221,11 @@ func (a *Agent) startupMessage() {
 	fmt.Println(string(banner))
 	fmt.Println("Get your AI limits in real time. Built by Venn Billing.")
 	fmt.Println("https://github.com/vennbilling/scrollwork")
-	fmt.Println("\n\n")
+	fmt.Println("")
+	fmt.Println("")
 
 	fmt.Println("Using LLM Model:", a.config.Model)
-	fmt.Println("\n")
+	fmt.Println("")
 }
 
 func (a *Agent) handleConnection(ctx context.Context, conn net.Conn) {
@@ -249,7 +253,9 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-a.usageReceived:
+		case tokens := <-a.usageReceived:
+			a.currentUsage.Update(tokens)
+			log.Printf("Current Usage: %d tokens", a.currentUsage.tokens)
 			break
 		}
 	}
