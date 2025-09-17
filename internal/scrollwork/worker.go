@@ -43,20 +43,19 @@ func (w *UsageWorker) Start(ctx context.Context) error {
 		return err
 	}
 
+	// Fetch the latest usage snapshot for the organization
+	usage, err := w.fetchOrganizationUsage(ctx)
+	if err != nil {
+		return err
+	}
+
+	w.config.UsageReceived <- usage.Tokens
 	w.config.WorkerReady <- true
 
 	return nil
 }
 
-func (w *UsageWorker) Run(ctx context.Context) error {
-	// Fetch the latest usage snapshot for the organization
-	usage, err := w.fetchOrganizationUsage(ctx)
-	if err != nil {
-		return fmt.Errorf("Scrollwork Usage Worker failed to run: %v", err)
-	}
-
-	w.config.UsageReceived <- usage.Tokens
-
+func (w *UsageWorker) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Duration(w.config.TickRate) * time.Minute)
 	w.ticker = ticker
 
@@ -66,13 +65,14 @@ func (w *UsageWorker) Run(ctx context.Context) error {
 			log.Printf("Scrollwork Usage Worker is fetching latest usage...")
 			usage, err := w.fetchOrganizationUsage(ctx)
 			if err != nil {
-				return fmt.Errorf("fetchOrganizationUsage failed: %v", err)
+				log.Printf("Scrollwork Usager Worker failed to fetch latest usage: %v", err)
+				break
 			}
 
 			w.config.UsageReceived <- usage.Tokens
+			log.Printf("Scrollwork Usage Worker has received the latest usage")
 		case <-ctx.Done():
-			log.Printf("Scrollwork Usage Worker will be shutting down...")
-			return ctx.Err()
+			return
 		}
 	}
 }
@@ -81,6 +81,8 @@ func (w *UsageWorker) Stop() {
 	if w.ticker != nil {
 		w.ticker.Stop()
 	}
+
+	w.config.WorkerReady <- false
 }
 
 func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (UsageData, error) {

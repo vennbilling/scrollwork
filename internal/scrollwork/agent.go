@@ -137,17 +137,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	a.wg.Add(1)
 	go func() {
 		defer a.wg.Done()
-		err := a.worker.Run(ctx)
-
-		if ctx.Err() != nil {
-
-			log.Printf("Scrollwork Usage Worker has shutdown")
-			return
-		}
-
-		if err != nil {
-			log.Printf("Scrollwork Usage Worker stopped running: %v", err)
-		}
+		a.worker.Run(ctx)
 	}()
 
 	// Handle updates to current usage
@@ -179,13 +169,21 @@ func (a *Agent) Run(ctx context.Context) error {
 
 // Stop stops the Scrollwork Agent.
 func (a *Agent) Stop() error {
+	// Shut down the usage worker
+	go func() {
+		a.worker.Stop()
+	}()
+
+	// TODO: We should probably have a context.Deadline here in case worker shutdownm fails
+	select {
+	case <-a.worker.config.WorkerReady:
+		log.Printf("Scrollwork Usage Worker has shut down")
+	}
+
 	// Shut down the UNIX socket
 	if a.listener != nil {
 		a.listener.Close()
 	}
-
-	// Shut down the usage worker
-	a.worker.Stop()
 
 	// Wait for everything else to clean up
 	a.wg.Wait()
