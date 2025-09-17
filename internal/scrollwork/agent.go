@@ -230,7 +230,7 @@ func (a *Agent) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	conn.Write([]byte(fmt.Sprintf("Your prompt has a risk level of %s", r)))
+	conn.Write([]byte(fmt.Sprintf("You are currently using %d tokens. Your prompt has a risk level of %s", a.currentUsage.Tokens(), r)))
 }
 
 func (a *Agent) processUsageUpdates(ctx context.Context) {
@@ -251,12 +251,15 @@ func (a *Agent) assesPrompt(ctx context.Context, prompt string) (usage.RiskLevel
 	switch {
 	case llm.IsAnthropicModel(a.config.Model):
 		log.Printf("Counting tokens for prompt %s", prompt)
-		_, err := a.anthropicClient.CountTokens(ctx, prompt)
+		tokens, err := a.anthropicClient.CountTokens(ctx, prompt)
 		if err != nil {
 			return usage.RiskLevelUnknown, err
 		}
 
-		return usage.RiskLevelLow, nil
+		risk := usage.NewRiskThresholds(0, 0, 0)
+		level := risk.Asses(tokens)
+
+		return level, nil
 	case llm.IsOpenAIModel(a.config.Model):
 		return usage.RiskLevelUnknown, fmt.Errorf("OpenAI is not supported at this time")
 	default:

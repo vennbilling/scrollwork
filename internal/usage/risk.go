@@ -22,3 +22,15 @@ func NewRiskThresholds(low float32, medium float32, high float32) RiskThresholds
 		highThreshold:   high,
 	}
 }
+
+func (t *RiskThresholds) Asses(tokens int) RiskLevel {
+	if t.lowThreshold == 0 && t.mediumThreshold == 0 && t.highThreshold == 0 {
+		return RiskLevelLow
+	}
+
+	if tokens == 0 {
+		return RiskLevelLow
+	}
+
+	return RiskLevelUnknown
+}
