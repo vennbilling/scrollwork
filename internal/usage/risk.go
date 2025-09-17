@@ -1,0 +1,24 @@
+package usage
+
+type (
+	RiskThresholds struct {
+		lowThreshold    float32
+		mediumThreshold float32
+		highThreshold   float32
+	}
+
+	RiskLevel string
+)
+
+const (
+	RiskLevelUnknown RiskLevel = "unknown"
+	RiskLevelLow     RiskLevel = "low"
+)
+
+func NewRiskThresholds(low float32, medium float32, high float32) RiskThresholds {
+	return RiskThresholds{
+		lowThreshold:    low,
+		mediumThreshold: medium,
+		highThreshold:   high,
+	}
+}

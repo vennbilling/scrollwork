@@ -40,13 +40,6 @@ type (
 
 		wg *sync.WaitGroup
 	}
-
-	RiskLevel string
-)
-
-const (
-	RiskLevelUnknown RiskLevel = "unknown"
-	RiskLevelLow     RiskLevel = "low"
 )
 
 // NewAgent returns an Agent.
@@ -254,19 +247,19 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 }
 
 // Asses determines the risk level of a given prompt.
-func (a *Agent) assesPrompt(ctx context.Context, prompt string) (RiskLevel, error) {
+func (a *Agent) assesPrompt(ctx context.Context, prompt string) (usage.RiskLevel, error) {
 	switch {
 	case llm.IsAnthropicModel(a.config.Model):
 		log.Printf("Counting tokens for prompt %s", prompt)
 		_, err := a.anthropicClient.CountTokens(ctx, prompt)
 		if err != nil {
-			return RiskLevelUnknown, err
+			return usage.RiskLevelUnknown, err
 		}
 
-		return RiskLevelLow, nil
+		return usage.RiskLevelLow, nil
 	case llm.IsOpenAIModel(a.config.Model):
-		return RiskLevelUnknown, fmt.Errorf("OpenAI is not supported at this time")
+		return usage.RiskLevelUnknown, fmt.Errorf("OpenAI is not supported at this time")
 	default:
-		return RiskLevelUnknown, fmt.Errorf("unknown model")
+		return usage.RiskLevelUnknown, fmt.Errorf("unknown model")
 	}
 }
