@@ -1,4 +1,4 @@
-package scrollwork
+package usage
 
 import "sync"
 

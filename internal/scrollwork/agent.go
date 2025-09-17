@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"scrollwork/internal/llm"
+	"scrollwork/internal/usage"
 	"sync"
 	"time"
 
@@ -35,7 +36,7 @@ type (
 		usageReceived chan int
 		workerReady   chan bool
 
-		currentUsage Usage
+		currentUsage usage.Usage
 
 		wg *sync.WaitGroup
 	}
@@ -79,7 +80,7 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 		usageReceived: usageReceived,
 		workerReady:   workerReady,
 		wg:            &wg,
-		currentUsage:  Usage{},
+		currentUsage:  usage.Usage{},
 	}, nil
 }
 
@@ -246,7 +247,7 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 			return
 		case tokens := <-a.usageReceived:
 			a.currentUsage.Update(tokens)
-			log.Printf("Current Usage: %d tokens", a.currentUsage.tokens)
+			log.Printf("Current Usage: %d tokens", a.currentUsage.Tokens())
 			break
 		}
 	}

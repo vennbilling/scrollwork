@@ -1,14 +1,14 @@
-package scrollwork_test
+package usage_test
 
 import (
-	"scrollwork/internal/scrollwork"
+	"scrollwork/internal/usage"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestUpdate(t *testing.T) {
-	u := scrollwork.Usage{}
+	u := usage.Usage{}
 
 	u.Update(10)
 
