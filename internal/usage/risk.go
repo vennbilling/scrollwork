@@ -28,6 +28,10 @@ func (t *RiskThresholds) Asses(tokens int) RiskLevel {
 		return RiskLevelLow
 	}
 
+	if t.lowThreshold == t.mediumThreshold && t.mediumThreshold == t.highThreshold {
+		return RiskLevelUnknown
+	}
+
 	if tokens == 0 {
 		return RiskLevelLow
 	}
