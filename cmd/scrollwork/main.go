@@ -79,7 +79,7 @@ func main() {
 
 	select {
 	case <-ctx.Done():
-		log.Println("Shutdown signal received, Scrollwork is shutting down...")
+		log.Println("Shutdown signal received, Scrollwork Agent and Usage worker will be shutting down...")
 	}
 
 	if err := agent.Stop(); err != nil {

@@ -112,10 +112,14 @@ func (a *Agent) Start(ctx context.Context) error {
 	// Wait until worker is ready to run before we start the UNIX listener
 	select {
 	case <-workerStartCtx.Done():
-		return fmt.Errorf("Scrollwork Usage Worker failed to startup: %v", workerStartCtx.Err())
+		if workerStartCtx.Err() != nil {
+			return fmt.Errorf("Scrollwork Usage Worker startup aborted")
+		}
+
+		return nil
 
 	case <-a.workerReady:
-		log.Printf("Scrollwork Usage Worker is healthy.")
+		log.Printf("Scrollwork Usage Worker is ready")
 		workerStartCancel()
 	}
 
@@ -134,6 +138,13 @@ func (a *Agent) Run(ctx context.Context) error {
 	go func() {
 		defer a.wg.Done()
 		err := a.worker.Run(ctx)
+
+		if ctx.Err() != nil {
+
+			log.Printf("Scrollwork Usage Worker has shutdown")
+			return
+		}
+
 		if err != nil {
 			log.Printf("Scrollwork Usage Worker stopped running: %v", err)
 		}
@@ -146,7 +157,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.processUsageUpdates(ctx)
 	}()
 
-	log.Printf("Scrollwork Usage Worker is now running.")
+	log.Printf("Scrollwork Usage Worker is now running")
 
 	// Configure unix socket listener
 	addr := net.UnixAddr{Name: "/tmp/scrollwork.sock", Net: "unix"}
@@ -162,7 +173,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		a.listen(ctx)
 	}()
 
-	log.Printf("Scrollwork Agent is now running and ready to accept connections.")
+	log.Printf("Scrollwork Agent is now running and ready to accept connections")
 	return nil
 }
 
@@ -190,16 +201,16 @@ func (a *Agent) listen(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Scrollwork Agent socket closed")
+			log.Printf("Scrollwork Agent socket has been terminated")
 			return
 		default:
 			conn, err := a.listener.AcceptUnix()
 			if err != nil {
-				log.Printf("Connections can no longer be accepted: %v", err)
+				log.Printf("Scrollwork Agent connections can no longer be accepted: %v", err)
 				break
 			}
 
-			log.Printf("Connection accepted")
+			log.Printf("Scrollwork Agent connection accepted")
 			go a.handleConnection(ctx, conn)
 		}
 	}

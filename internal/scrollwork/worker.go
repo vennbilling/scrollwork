@@ -2,6 +2,7 @@ package scrollwork
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"scrollwork/internal/llm"
@@ -78,11 +79,8 @@ func (w *UsageWorker) Run(ctx context.Context) error {
 
 func (w *UsageWorker) Stop() {
 	if w.ticker != nil {
-		log.Printf("Stopping usage worker ticker...")
 		w.ticker.Stop()
 	}
-
-	log.Printf("Scrollwork Usage Worker has shutdown.")
 }
 
 func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (UsageData, error) {
@@ -92,6 +90,13 @@ func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (UsageData, er
 
 	tokens, err := w.AnthropicClient.GetOrganizationMessageUsageReport(ctx)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return UsageData{}, nil
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return UsageData{}, nil
+		}
+
 		return UsageData{}, fmt.Errorf("Failed to fetchOrganizationUsage: %v", err)
 	}
 
