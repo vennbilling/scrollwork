@@ -55,6 +55,11 @@ func main() {
 		APIKey:                      apiKey,
 		AdminKey:                    adminKey,
 		RefreshUsageIntervalMinutes: refreshRateMinutes,
+
+		// TODO: Parse from flags
+		LowRiskThreshold:    0,
+		MediumRiskThreshold: 0,
+		HigthRiskThreshold:  0,
 	}
 	agent, err := scrollwork.NewAgent(config)
 	if err != nil {

@@ -22,6 +22,10 @@ type (
 		APIKey                      string
 		AdminKey                    string
 		RefreshUsageIntervalMinutes int
+
+		LowRiskThreshold    float32
+		MediumRiskThreshold float32
+		HigthRiskThreshold  float32
 	}
 
 	Agent struct {
@@ -36,7 +40,8 @@ type (
 		usageReceived chan int
 		workerReady   chan bool
 
-		currentUsage usage.Usage
+		currentUsage   usage.Usage
+		riskThresholds usage.RiskThresholds
 
 		wg *sync.WaitGroup
 	}
@@ -65,15 +70,18 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 	// An agent always has a usage worker
 	worker := newUsageWorker(workerConfig)
 
+	riskThresholds := usage.NewRiskThresholds(config.LowRiskThreshold, config.MediumRiskThreshold, config.HigthRiskThreshold)
+
 	return &Agent{
 		config: config,
 
 		worker: worker,
 
-		usageReceived: usageReceived,
-		workerReady:   workerReady,
-		wg:            &wg,
-		currentUsage:  usage.Usage{},
+		usageReceived:  usageReceived,
+		workerReady:    workerReady,
+		wg:             &wg,
+		currentUsage:   usage.Usage{},
+		riskThresholds: riskThresholds,
 	}, nil
 }
 
@@ -256,8 +264,7 @@ func (a *Agent) assesPrompt(ctx context.Context, prompt string) (usage.RiskLevel
 			return usage.RiskLevelUnknown, err
 		}
 
-		risk := usage.NewRiskThresholds(0, 0, 0)
-		level := risk.Asses(tokens)
+		level := a.riskThresholds.Asses(tokens)
 
 		return level, nil
 	case llm.IsOpenAIModel(a.config.Model):
