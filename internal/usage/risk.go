@@ -13,6 +13,8 @@ type (
 const (
 	RiskLevelUnknown RiskLevel = "unknown"
 	RiskLevelLow     RiskLevel = "low"
+	RiskLevelMedium  RiskLevel = "medium"
+	RiskLevelHigh    RiskLevel = "high"
 )
 
 func NewRiskThresholds(low float32, medium float32, high float32) RiskThresholds {

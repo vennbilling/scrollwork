@@ -45,6 +45,27 @@ func TestAsses(t *testing.T) {
 			Tokens:          100,
 			Expected:        usage.RiskLevelUnknown,
 		},
+		{
+			LowThreshold:    200,
+			MediumThreshold: 400,
+			HighThreshold:   600,
+			Tokens:          100,
+			Expected:        usage.RiskLevelLow,
+		},
+		{
+			LowThreshold:    200,
+			MediumThreshold: 400,
+			HighThreshold:   600,
+			Tokens:          500,
+			Expected:        usage.RiskLevelMedium,
+		},
+		{
+			LowThreshold:    200,
+			MediumThreshold: 400,
+			HighThreshold:   600,
+			Tokens:          900,
+			Expected:        usage.RiskLevelHigh,
+		},
 	}
 
 	for _, td := range tt {
