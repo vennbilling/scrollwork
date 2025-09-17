@@ -34,7 +34,6 @@ type (
 
 		usageReceived chan int
 		workerReady   chan bool
-		shutdown      context.CancelFunc
 
 		currentUsage Usage
 
@@ -96,8 +95,6 @@ func (a *Agent) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to Start: OpenAI is not supported at this time.")
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-
 	if llm.IsAnthropicModel(a.config.Model) {
 		anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, a.config.Model)
 		a.anthropicClient = anthropicClient
@@ -125,8 +122,6 @@ func (a *Agent) Start(ctx context.Context) error {
 		log.Printf("Scrollwork Usage Worker is ready")
 		workerStartCancel()
 	}
-
-	a.shutdown = cancel
 
 	return nil
 }
@@ -190,10 +185,6 @@ func (a *Agent) Stop() error {
 
 	// Wait for everything else to clean up
 	a.wg.Wait()
-
-	if a.shutdown != nil {
-		a.shutdown()
-	}
 
 	return nil
 }
