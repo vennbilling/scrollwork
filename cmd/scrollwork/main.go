@@ -7,9 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"scrollwork/internal/scrollwork"
-	"sync"
 	"syscall"
-	"time"
 
 	_ "embed"
 )
@@ -20,12 +18,6 @@ var (
 	adminKey           string
 	refreshRateMinutes int
 )
-
-type usageWorker struct {
-	Interval time.Duration
-	Period   time.Duration
-	wg       *sync.WaitGroup
-}
 
 func init() {
 	flag.StringVar(&model, "model", "", "AI Model")
