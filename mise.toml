@@ -1,0 +1,18 @@
+[tools]
+go = "1.25"
+
+[tasks.start]
+description = "Runs scrollwork"
+run = "go run cmd/scrollwork/main.go"
+
+[tasks.build]
+description = "Builds scrollwork"
+run = "go build -o ./scrollwork"
+
+[tasks.docker-build]
+run = "docker build . -t scrollwork:latest"
+
+description = "Builds scrollwork docker image"
+[tasks.test]
+description = "Run tests"
+run = "go test -count=1 ./..."
