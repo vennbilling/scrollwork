@@ -77,6 +77,15 @@ mise run docker-build
 - `go fmt` handles all code formatting
 - External libraries should not be pulled in automatically
 
+### Lifecycle
+
+- The usage worker starts and stops first
+- The agent only accepts connections once the worker is ready
+- Terminating the agent stops the usage worker first and then terminates the connection
+- Starting and Running the worker / agent are two different states
+- Starting prepares everything to work
+- Running allows work to happen
+
 ### Data Flow
 
 1. Agent starts and initializes usage worker with AI provider client
@@ -104,9 +113,22 @@ mise run docker-build
 - `--mediumRiskThreshold`: Token percentage threshold for medium risk level (default: 75)
 - `--highRiskThreshold`: Token percentage threshold for high risk level (default: 100)
 
+### context.Context rules
+
+- The context defined in main.go should be passed around especially when making API requests using third party clients
+
+### Logging Rules
+
+- You can log.Printf anywhere you want.
+- You should only log.Fatal in the main package. Return an error everywhere else using golang's errors
+
 ### Testing Patterns
 
 - Use `_test.go` files alongside source files
 - Tests use testify/assert for assertions
 - Mock external dependencies (AI provider APIs) for unit tests
 - Integration tests should test the full agent lifecycle
+- Always run go fmt when touching go files
+- Verify the agent starts after touching anything outside of cmd
+- Always verify the Docker image builds and you can run it. You should tag images with scrollwork:latest
+
