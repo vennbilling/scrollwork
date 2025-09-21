@@ -13,10 +13,13 @@ import (
 )
 
 var (
-	model              string
-	apiKey             string
-	adminKey           string
-	refreshRateMinutes int
+	model               string
+	apiKey              string
+	adminKey            string
+	refreshRateMinutes  int
+	lowRiskThreshold    float64
+	mediumRiskThreshold float64
+	highRiskThreshold   float64
 )
 
 func init() {
@@ -26,6 +29,10 @@ func init() {
 	flag.StringVar(&apiKey, "apiKey", "", "API Key")
 	flag.StringVar(&adminKey, "adminKey", "", "Admin Key")
 	flag.IntVar(&refreshRateMinutes, "refreshRate", 1, "Refresh rate in minutes for fetching organization usage")
+
+	flag.Float64Var(&lowRiskThreshold, "lowRiskThreshold", 50, "Token percentage threshold for low risk level (default: 50)")
+	flag.Float64Var(&mediumRiskThreshold, "mediumRiskThreshold", 75, "Token percentage threshold for medium risk level (default: 75)")
+	flag.Float64Var(&highRiskThreshold, "highRiskThreshold", 100, "Token percentage threshold for high risk level (default: 100)")
 }
 
 func main() {
@@ -56,10 +63,9 @@ func main() {
 		AdminKey:                    adminKey,
 		RefreshUsageIntervalMinutes: refreshRateMinutes,
 
-		// TODO: Parse from flags
-		LowRiskThreshold:    0,
-		MediumRiskThreshold: 0,
-		HigthRiskThreshold:  0,
+		LowRiskThreshold:    float32(lowRiskThreshold),
+		MediumRiskThreshold: float32(mediumRiskThreshold),
+		HigthRiskThreshold:  float32(highRiskThreshold),
 	}
 	agent, err := scrollwork.NewAgent(config)
 	if err != nil {

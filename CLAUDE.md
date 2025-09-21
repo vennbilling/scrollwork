@@ -100,8 +100,9 @@ mise run docker-build
 - `--apiKey`: Provider API key for non-admin API requests (required)
 - `--adminKey`: Provider admin key for Admin API requests (required)
 - `--refreshRate`: Usage worker sync interval in minutes (default: 1)
-
-Risk threshold flags exist but are currently hardcoded to 0 in `cmd/scrollwork/main.go:60-62`. These will be configured via flags.
+- `--lowRiskThreshold`: Token percentage threshold for low risk level (default: 50)
+- `--mediumRiskThreshold`: Token percentage threshold for medium risk level (default: 75)
+- `--highRiskThreshold`: Token percentage threshold for high risk level (default: 100)
 
 ### Testing Patterns
 
