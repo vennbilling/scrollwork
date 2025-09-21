@@ -1,4 +1,5 @@
 [tools]
+buf = "1.57"
 go = "1.25"
 
 [tasks.start]
