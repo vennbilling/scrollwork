@@ -108,7 +108,7 @@ func (a *AnthropicClient) GetOrganizationMessageUsageReport(ctx context.Context)
 	return inputTokens, nil
 }
 
-func (a *AnthropicClient) CountTokens(ctx context.Context, prompt string) (int, error) {
+func (a *AnthropicClient) CountTokens(ctx context.Context, messages []Message) (int, error) {
 	if a.messagesClient == nil {
 		return 0, fmt.Errorf("CountTokens failed: anthropic messages client is nil")
 	}

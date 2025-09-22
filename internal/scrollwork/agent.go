@@ -232,7 +232,8 @@ func (a *Agent) handleConnection(ctx context.Context, conn net.Conn) {
 	// 4. Return tokens used and percentage of total quota used
 	// 5. Return a risk level of the request. Low = Low cost, Medium = Medium cost, High = High / Unknown cost. Costs are configurable
 
-	r, err := a.assesPrompt(ctx, "Hello world")
+	messages := []llm.Message{{Role: llm.MessageRoleUser, Content: "Hello world"}}
+	r, err := a.assesPrompt(ctx, messages)
 	if err != nil {
 		log.Printf("assesPrompt failed: %v", err)
 		return
@@ -255,11 +256,10 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 }
 
 // Asses determines the risk level of a given prompt.
-func (a *Agent) assesPrompt(ctx context.Context, prompt string) (usage.RiskLevel, error) {
+func (a *Agent) assesPrompt(ctx context.Context, messages []llm.Message) (usage.RiskLevel, error) {
 	switch {
 	case llm.IsAnthropicModel(a.config.Model):
-		log.Printf("Counting tokens for prompt %s", prompt)
-		tokens, err := a.anthropicClient.CountTokens(ctx, prompt)
+		tokens, err := a.anthropicClient.CountTokens(ctx, messages)
 		if err != nil {
 			return usage.RiskLevelUnknown, err
 		}
