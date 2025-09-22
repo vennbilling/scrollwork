@@ -77,6 +77,9 @@ func (a *AnthropicClient) GetOrganizationMessageUsageReport(ctx context.Context)
 	startingAt := time.Now().Truncate(24 * time.Hour).Format(time.RFC3339)
 	endingAt := time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour).Format(time.RFC3339)
 
+	// TODO: This data is assuming an anthropic shape but OpenAI is slightly different
+	// https://platform.openai.com/docs/api-reference/usage/completions
+	// UsageData should be our shape of data that is built using specific responses from Anthropic or OpenAI
 	d := struct {
 		Data []usageData `json:"data"`
 	}{}
