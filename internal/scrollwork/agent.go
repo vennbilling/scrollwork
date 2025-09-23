@@ -97,6 +97,8 @@ func (a *Agent) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to Start: OpenAI is not supported at this time.")
 	}
 
+	// TODO: We should do something like llm.NewAPIClient and obfuscate the Anthropic and OpenAI clients. Scrollwork package shouldn't really care
+	// or have any logic based on the model we are using.
 	if llm.IsAnthropicModel(a.config.Model) {
 		anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, a.config.Model)
 		a.anthropicClient = anthropicClient
