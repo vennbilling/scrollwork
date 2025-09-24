@@ -21,6 +21,7 @@ type (
 		config *UsageWorkerConfig
 
 		ticker          *time.Ticker
+		Client          *llm.Client
 		AnthropicClient *llm.AnthropicClient
 	}
 

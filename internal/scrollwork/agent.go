@@ -34,6 +34,7 @@ type (
 		listener *net.UnixListener
 		worker   *UsageWorker
 
+		llmClient       *llm.APIClient
 		anthropicClient *llm.AnthropicClient
 		openAIClient    struct{}
 
@@ -72,10 +73,16 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 
 	riskThresholds := usage.NewRiskThresholds(config.LowRiskThreshold, config.MediumRiskThreshold, config.HigthRiskThreshold)
 
+	// TODO: Properly initialize this client with multiple models
+	c := llm.ClientConfig{}
+	llmClient := llm.NewAPIClient(c)
+
 	return &Agent{
 		config: config,
 
 		worker: worker,
+
+		llmClient: llmClient,
 
 		usageReceived:  usageReceived,
 		workerReady:    workerReady,
