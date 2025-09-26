@@ -19,15 +19,22 @@ type (
 	}
 
 	ClientConfig struct {
-		Models           []string
-		AnthropicAPIKeys struct {
-			AdminAPIKey    string
-			MessagesAPIKey string
-		}
+		Models  []string
+		APIKeys *APIKeys
+	}
 
-		OpenAIAPIKeys struct {
-			APIKey string
-		}
+	APIKeys struct {
+		Anthropic AnthropicAPIKeys
+		OpenAI    OpenAIAPIKeys
+	}
+
+	AnthropicAPIKeys struct {
+		AdminAPIKey    string
+		MessagesAPIKey string
+	}
+
+	OpenAIAPIKeys struct {
+		APIKey string
 	}
 
 	APIClient struct {
@@ -47,11 +54,11 @@ type (
 func NewAPIClient(config ClientConfig) *APIClient {
 	c := &APIClient{}
 
-	if config.AnthropicAPIKeys.MessagesAPIKey != "" && config.AnthropicAPIKeys.AdminAPIKey != "" {
+	if config.APIKeys.Anthropic.MessagesAPIKey != "" && config.APIKeys.Anthropic.AdminAPIKey != "" {
 		// TODO: Initialize Anthropic Client
 	}
 
-	if config.OpenAIAPIKeys.APIKey != "" {
+	if config.APIKeys.OpenAI.APIKey != "" {
 		// TODO: Initialize OpenAI Client
 	}
 	return c

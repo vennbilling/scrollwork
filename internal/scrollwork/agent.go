@@ -23,6 +23,8 @@ type (
 		AdminKey                    string
 		RefreshUsageIntervalMinutes int
 
+		APIKeys *llm.APIKeys
+
 		LowRiskThreshold    float32
 		MediumRiskThreshold float32
 		HigthRiskThreshold  float32
@@ -61,21 +63,24 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 	usageReceived := make(chan int, 1)
 	workerReady := make(chan bool, 1)
 
+	c := llm.ClientConfig{
+		Models:  []string{config.Model},
+		APIKeys: config.APIKeys,
+	}
+	llmClient := llm.NewAPIClient(c)
+
 	workerConfig := &UsageWorkerConfig{
 		Model:         config.Model,
 		UsageReceived: usageReceived,
 		WorkerReady:   workerReady,
 		TickRate:      config.RefreshUsageIntervalMinutes,
+		Client:        llmClient,
 	}
 
 	// An agent always has a usage worker
 	worker := newUsageWorker(workerConfig)
 
 	riskThresholds := usage.NewRiskThresholds(config.LowRiskThreshold, config.MediumRiskThreshold, config.HigthRiskThreshold)
-
-	// TODO: Properly initialize this client with multiple models
-	c := llm.ClientConfig{}
-	llmClient := llm.NewAPIClient(c)
 
 	return &Agent{
 		config: config,
