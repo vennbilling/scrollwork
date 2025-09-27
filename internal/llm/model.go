@@ -54,12 +54,14 @@ type (
 func NewAPIClient(config ClientConfig) *APIClient {
 	c := &APIClient{}
 
-	if config.APIKeys.Anthropic.MessagesAPIKey != "" && config.APIKeys.Anthropic.AdminAPIKey != "" {
-		// TODO: Initialize Anthropic Client
-	}
+	if config.APIKeys != nil {
+		if config.APIKeys.Anthropic.MessagesAPIKey != "" && config.APIKeys.Anthropic.AdminAPIKey != "" {
+			// TODO: Initialize Anthropic Client
+		}
 
-	if config.APIKeys.OpenAI.APIKey != "" {
-		// TODO: Initialize OpenAI Client
+		if config.APIKeys.OpenAI.APIKey != "" {
+			// TODO: Initialize OpenAI Client
+		}
 	}
 	return c
 }
