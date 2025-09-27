@@ -149,6 +149,7 @@ BAD PR: "Implement $FEATURE"
 - When in doubt, start with small changes that don't touch the `scrollwork` package. Once verified, start a new set of changes that integrate them into the agent or worker.
 - We should avoid rewriting things when things don't make sense. Instead, think about the flow of data and ask if there is a better way
 - Bonus fixes are tempting but don't sneak them in unless they are very small. New PRs are easy to create.
+- Run relevant tests after making changes
 
 #### Logging rules
 
@@ -183,7 +184,7 @@ BAD PR: "Implement $FEATURE"
 ```bash
 # Build the project
 mise run build
-# or: go build -o ./scrollwork
+# or: go build -o ./bin/scrollwork
 
 # Run the application
 mise run start
@@ -212,4 +213,3 @@ go test ./internal/llm/
 mise run docker-build
 # or: docker build . -t scrollwork:latest
 ```
-
