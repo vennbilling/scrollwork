@@ -39,13 +39,18 @@ func init() {
 	flag.Var(&models, "model", "AI Model (can be specified multiple times)")
 
 	// TODO: These are assuming Anthropic keys. We should handle OpenAPI differently
-	flag.StringVar(&apiKey, "apiKey", "", "API Key")
-	flag.StringVar(&adminKey, "adminKey", "", "Admin Key")
+	flag.StringVar(&apiKey, "apiKey", os.Getenv("SCROLLWORK_API_KEY"), "API Key")
+	flag.StringVar(&adminKey, "adminKey", os.Getenv("SCROLLWORK_ADMIN_KEY"), "Admin Key")
 	flag.IntVar(&refreshRateMinutes, "refreshRate", 1, "Refresh rate in minutes for fetching organization usage")
 
 	flag.Float64Var(&lowRiskThreshold, "lowRiskThreshold", 50, "Token percentage threshold for low risk level (default: 50)")
 	flag.Float64Var(&mediumRiskThreshold, "mediumRiskThreshold", 75, "Token percentage threshold for medium risk level (default: 75)")
 	flag.Float64Var(&highRiskThreshold, "highRiskThreshold", 100, "Token percentage threshold for high risk level (default: 100)")
+
+	// Handle SCROLLWORK_MODEL environment variable
+	if envModel := os.Getenv("SCROLLWORK_MODEL"); envModel != "" {
+		models = append(models, envModel)
+	}
 }
 
 func main() {

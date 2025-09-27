@@ -6,6 +6,10 @@ go = "1.25"
 description = "Runs scrollwork"
 run = "go run cmd/scrollwork/main.go"
 
+[tasks.start-secrets]
+description = "Runs scrollwork with secrets from 1Password"
+run = "op run --env-file=.env -- go run cmd/scrollwork/main.go"
+
 [tasks.build]
 description = "Builds scrollwork"
 run = "go build -o ./bin/scrollwork cmd/scrollwork/main.go"
