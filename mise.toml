@@ -21,3 +21,7 @@ description = "Builds scrollwork docker image"
 [tasks.test]
 description = "Run tests"
 run = "go test -count=1 ./..."
+
+[tasks.test-secrets]
+description = "Run scrollwork with secrets"
+run = "op run --env-file=.env -- go run cmd/scrollwork/main.go"

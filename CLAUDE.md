@@ -173,8 +173,13 @@ BAD PR: "Implement $FEATURE"
 - Mock external dependencies (AI provider APIs) for unit tests
 - Integration tests should test the full agent lifecycle
 - Always run go fmt when touching go files
-- Verify the agent starts after touching anything outside of cmd
-- Always verify the Docker image builds and you can run it. You should tag images with scrollwork:latest
+
+#### Tests to run
+
+- Unit tests with `go test`
+- Verify the agent starts after touching anything outside of cmd. Go through all the flag scenarios
+- Run scrollwork with secrets and wait at least a minute to verify "fetching usage" logging appears (smoke integration test)
+- Always verify the Docker image builds and it runs and shows the "fetching usage" log. You should tag images with scrollwork:latest
 - When a test fails, call it out but don't spend too much time automatically investigating. Dont attempt to fix unrelated changes to make the test pass either
 
 ## Development Commands

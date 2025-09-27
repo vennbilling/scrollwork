@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mise run:*)"
+      "Bash(mise run:*)",
+      "Bash(./bin/scrollwork:*)",
+      "Bash(go test:*)"
     ],
     "deny": [],
     "ask": []
