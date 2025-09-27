@@ -7,6 +7,7 @@ import (
 	"net"
 	"scrollwork/internal/llm"
 	"scrollwork/internal/usage"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,7 +19,7 @@ var banner []byte
 
 type (
 	AgentConfig struct {
-		Model                       string
+		Models                      []string
 		APIKey                      string
 		AdminKey                    string
 		RefreshUsageIntervalMinutes int
@@ -55,8 +56,8 @@ type (
 // It also spins up a worker that periodically checks and syncs an organization's current usage.
 // This usage is used when calculating the risk of a AI Prompt.
 func NewAgent(config *AgentConfig) (*Agent, error) {
-	if config.Model == "" {
-		return nil, fmt.Errorf("NewAgent failed: missing LLM model")
+	if len(config.Models) == 0 {
+		return nil, fmt.Errorf("NewAgent failed: missing LLM models")
 	}
 
 	var wg sync.WaitGroup
@@ -64,13 +65,13 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 	workerReady := make(chan bool, 1)
 
 	c := llm.ClientConfig{
-		Models:  []string{config.Model},
+		Models:  config.Models,
 		APIKeys: config.APIKeys,
 	}
 	llmClient := llm.NewAPIClient(c)
 
 	workerConfig := &UsageWorkerConfig{
-		Model:         config.Model,
+		Model:         config.Models[0], // Use first model for now (single model support)
 		UsageReceived: usageReceived,
 		WorkerReady:   workerReady,
 		TickRate:      config.RefreshUsageIntervalMinutes,
@@ -99,22 +100,26 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 
 // Start starts the Scrollwork Agent.
 func (a *Agent) Start(ctx context.Context) error {
-	supportedLLMModel := llm.IsAnthropicModel(a.config.Model) || llm.IsOpenAIModel(a.config.Model)
-	if !supportedLLMModel {
-		return fmt.Errorf("failed to Start: LLM model must either be an OpenAI model or Anthropic model")
-	}
+	for _, model := range a.config.Models {
+		supportedLLMModel := llm.IsAnthropicModel(model) || llm.IsOpenAIModel(model)
+		if !supportedLLMModel {
+			return fmt.Errorf("failed to Start: LLM model %s must either be an OpenAI model or Anthropic model", model)
+		}
 
-	// TODO: Remove this check once we have OpenAI integrated
-	if llm.IsOpenAIModel(a.config.Model) {
-		return fmt.Errorf("failed to Start: OpenAI is not supported at this time.")
-	}
+		// TODO: Remove this check once we have OpenAI integrated
+		if llm.IsOpenAIModel(model) {
+			return fmt.Errorf("failed to Start: OpenAI model %s is not supported at this time", model)
+		}
 
-	// TODO: We should do something like llm.NewAPIClient and obfuscate the Anthropic and OpenAI clients. Scrollwork package shouldn't really care
-	// or have any logic based on the model we are using.
-	if llm.IsAnthropicModel(a.config.Model) {
-		anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, a.config.Model)
-		a.anthropicClient = anthropicClient
-		a.worker.AnthropicClient = anthropicClient
+		// TODO: We should do something like llm.NewAPIClient and obfuscate the Anthropic and OpenAI clients. Scrollwork package shouldn't really care
+		// or have any logic based on the model we are using.
+		if llm.IsAnthropicModel(model) {
+			if a.anthropicClient == nil {
+				anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, model)
+				a.anthropicClient = anthropicClient
+				a.worker.AnthropicClient = anthropicClient
+			}
+		}
 	}
 
 	a.startupMessage()
@@ -231,7 +236,7 @@ func (a *Agent) startupMessage() {
 	fmt.Println("")
 	fmt.Println("")
 
-	fmt.Println("Using LLM Model:", a.config.Model)
+	fmt.Println("Using LLM Models:", strings.Join(a.config.Models, ", "))
 	fmt.Println("")
 }
 
@@ -271,19 +276,23 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 
 // Asses determines the risk level of a given prompt.
 func (a *Agent) assesPrompt(ctx context.Context, messages []llm.Message) (usage.RiskLevel, error) {
-	switch {
-	case llm.IsAnthropicModel(a.config.Model):
-		tokens, err := a.anthropicClient.CountTokens(ctx, messages)
-		if err != nil {
-			return usage.RiskLevelUnknown, err
+	for _, model := range a.config.Models {
+		switch {
+		case llm.IsAnthropicModel(model):
+			tokens, err := a.anthropicClient.CountTokens(ctx, messages)
+			if err != nil {
+				return usage.RiskLevelUnknown, err
+			}
+
+			level := a.riskThresholds.Asses(tokens)
+
+			return level, nil
+		case llm.IsOpenAIModel(model):
+			return usage.RiskLevelUnknown, fmt.Errorf("OpenAI model %s is not supported at this time", model)
+		default:
+			return usage.RiskLevelUnknown, fmt.Errorf("unknown model: %s", model)
 		}
-
-		level := a.riskThresholds.Asses(tokens)
-
-		return level, nil
-	case llm.IsOpenAIModel(a.config.Model):
-		return usage.RiskLevelUnknown, fmt.Errorf("OpenAI is not supported at this time")
-	default:
-		return usage.RiskLevelUnknown, fmt.Errorf("unknown model")
 	}
+
+	return usage.RiskLevelUnknown, fmt.Errorf("no models configured")
 }

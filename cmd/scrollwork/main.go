@@ -7,13 +7,26 @@ import (
 	"os"
 	"os/signal"
 	"scrollwork/internal/scrollwork"
+	"strings"
 	"syscall"
 
 	_ "embed"
 )
 
+// modelsFlag is a custom flag type that accumulates multiple --model flags
+type modelsFlag []string
+
+func (m *modelsFlag) String() string {
+	return strings.Join(*m, ",")
+}
+
+func (m *modelsFlag) Set(value string) error {
+	*m = append(*m, value)
+	return nil
+}
+
 var (
-	model               string
+	models              modelsFlag
 	apiKey              string
 	adminKey            string
 	refreshRateMinutes  int
@@ -23,7 +36,7 @@ var (
 )
 
 func init() {
-	flag.StringVar(&model, "model", "", "AI Model")
+	flag.Var(&models, "model", "AI Model (can be specified multiple times)")
 
 	// TODO: These are assuming Anthropic keys. We should handle OpenAPI differently
 	flag.StringVar(&apiKey, "apiKey", "", "API Key")
@@ -38,8 +51,12 @@ func init() {
 func main() {
 	flag.Parse()
 
-	if model == "" {
-		log.Fatal("AI Model is required. Use --model to set it.")
+	if len(models) == 0 {
+		log.Fatal("At least one AI Model is required. Use --model to set it.")
+	}
+
+	if len(models) > 1 {
+		log.Fatal("Multiple models are not yet supported. Please specify exactly one --model flag.")
 	}
 
 	if apiKey == "" {
@@ -58,7 +75,7 @@ func main() {
 	defer stop()
 
 	config := &scrollwork.AgentConfig{
-		Model:                       model,
+		Models:                      []string(models),
 		APIKey:                      apiKey,
 		AdminKey:                    adminKey,
 		RefreshUsageIntervalMinutes: refreshRateMinutes,
