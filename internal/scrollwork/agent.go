@@ -44,7 +44,7 @@ type (
 		usageReceived chan int
 		workerReady   chan bool
 
-		currentUsage   usage.Usage
+		currentUsage   usage.ModelUsage
 		riskThresholds usage.RiskThresholds
 
 		wg *sync.WaitGroup
@@ -93,7 +93,7 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 		usageReceived:  usageReceived,
 		workerReady:    workerReady,
 		wg:             &wg,
-		currentUsage:   usage.Usage{},
+		currentUsage:   usage.ModelUsage{},
 		riskThresholds: riskThresholds,
 	}, nil
 }

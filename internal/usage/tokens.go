@@ -3,23 +3,23 @@ package usage
 import "sync"
 
 type (
-	Usage struct {
+	ModelUsage struct {
 		tokens int
 
 		mu sync.Mutex
 	}
 )
 
-func (u *Usage) Update(tokens int) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+func (m *ModelUsage) Update(tokens int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	u.tokens = tokens
+	m.tokens = tokens
 }
 
-func (u *Usage) Tokens() int {
-	u.mu.Lock()
-	defer u.mu.Unlock()
+func (m *ModelUsage) Tokens() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	return u.tokens
+	return m.tokens
 }

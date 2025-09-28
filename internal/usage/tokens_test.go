@@ -8,9 +8,9 @@ import (
 )
 
 func TestUpdate(t *testing.T) {
-	u := usage.Usage{}
+	m := usage.ModelUsage{}
 
-	u.Update(10)
+	m.Update(10)
 
-	require.Equal(t, 10, u.Tokens())
+	require.Equal(t, 10, m.Tokens())
 }
