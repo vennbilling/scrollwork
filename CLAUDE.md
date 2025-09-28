@@ -137,15 +137,14 @@ All contributions to this codebase are expected to follow these guidelines:
 
 #### Coding style and format
 
-- Changes should be small and focused. We don't want to see a giant PR with 1000+ lines of code.
-
 ```
 GOOD PR: "This PR implements a way to consume $API_NAME from the LLM Providers"
 BAD PR: "This PR implements a way to consume $API_NAME, updates the agent, and worker and does everything"
 BAD PR: "Implement $FEATURE"
 ```
 
-- Focus primarily on the code change / task at hand and less about what the next coding steps could be. Adding a new struct field, for example, doesn't imply all (if any) functions we will need
+- Changes should be small and focused. We don't want to see a giant PR with 1000+ lines of code.
+- Focus primarily on the code change / task at hand and less about what the next coding steps could be. Adding a new struct field, for example, doesn't imply all (if any) functions we will need and we shouldn't automatically add them.
 - Functions that are public should be commented
 - When in doubt, start with small changes that don't touch the `scrollwork` package. Once verified, start a new set of changes that integrate them into the agent or worker.
 - We should avoid rewriting things when things don't make sense. Instead, think about the flow of data and ask if there is a better way
