@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/openai/openai-go/v2"
@@ -38,8 +39,8 @@ func (o *OpenAIClient) GetOrganizationCompletionsUsage(ctx context.Context) (int
 		return inputTokens, fmt.Errorf("GetOrganizationCompletionsUsage failed: openai client is nil")
 	}
 
-	startTime := string(time.Now().Truncate(24 * time.Hour).Unix())
-	endTime := string(time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour).Unix())
+	startTime := strconv.FormatInt(time.Now().Truncate(24 * time.Hour).Unix(), 10)
+	endTime := strconv.FormatInt(time.Now().Add(24 * time.Hour).Truncate(24 * time.Hour).Unix(), 10)
 
 	q := url.Values{}
 	q.Add("start_time", startTime)

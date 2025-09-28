@@ -84,7 +84,7 @@ func (c *APIClient) GetCurrentOrganizationUsage(ctx context.Context) (map[string
 			}
 			u[model] = usage
 		default:
-			return nil, fmt.Errorf("GetOrganizationUsage failed: unsupported model &s", model)
+			return nil, fmt.Errorf("GetOrganizationUsage failed: unsupported model %s", model)
 		}
 	}
 
