@@ -145,6 +145,7 @@ BAD PR: "This PR implements a way to consume $API_NAME, updates the agent, and w
 BAD PR: "Implement $FEATURE"
 ```
 
+- Focus primarily on the code change / task at hand and less about what the next coding steps could be. Adding a new struct field, for example, doesn't imply all (if any) functions we will need
 - Functions that are public should be commented
 - When in doubt, start with small changes that don't touch the `scrollwork` package. Once verified, start a new set of changes that integrate them into the agent or worker.
 - We should avoid rewriting things when things don't make sense. Instead, think about the flow of data and ask if there is a better way
@@ -173,14 +174,16 @@ BAD PR: "Implement $FEATURE"
 - Mock external dependencies (AI provider APIs) for unit tests
 - Integration tests should test the full agent lifecycle
 - Always run go fmt when touching go files
-
-#### Tests to run
-
-- Unit tests with `go test`
-- Verify the agent starts after touching anything outside of cmd. Go through all the flag scenarios
-- Run scrollwork with secrets and wait at least a minute to verify "fetching usage" logging appears (smoke integration test)
-- Always verify the Docker image builds and it runs and shows the "fetching usage" log. You should tag images with scrollwork:latest
 - When a test fails, call it out but don't spend too much time automatically investigating. Dont attempt to fix unrelated changes to make the test pass either
+
+#### Testing Strategy
+
+- Code changes should always run relevant unit tests.
+- Prior to pushing to origin, run integration and smoke tests
+- unit: Run all unit tests with `go test`
+- integration: Verify the agent starts after touching anything outside of cmd. Go through all the flag scenarios
+- smoke: Run scrollwork with valid flag values and wait at least a minute to verify "fetching usage" logging appears. There is a `mise` task to help with this. We should also connect to the unix socket and verify some response comes back.
+- e2e: Always verify the Docker image builds and it runs and shows the same output as the smoke test. You should tag images with scrollwork:latest
 
 ## Development Commands
 

@@ -3,7 +3,11 @@
     "allow": [
       "Bash(mise run:*)",
       "Bash(./bin/scrollwork:*)",
-      "Bash(go test:*)"
+      "Bash(go test:*)",
+      "Bash(go run:*)",
+      "Bash(timeout:*)",
+      "Bash(mise tasks:*)",
+      "Bash(nc:*)"
     ],
     "deny": [],
     "ask": []
