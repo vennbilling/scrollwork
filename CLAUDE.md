@@ -181,7 +181,7 @@ BAD PR: "Implement $FEATURE"
 - Prior to pushing to origin, run integration and smoke tests
 - unit: Run all unit tests with `go test`
 - integration: Verify the agent starts after touching anything outside of cmd. Go through all the flag scenarios
-- smoke: Run scrollwork with valid flag values and wait at least a minute to verify "fetching usage" logging appears. There is a `mise` task to help with this. We should also connect to the unix socket and verify some response comes back.
+- smoke: Run scrollwork with valid flag values and wait at least a minute to verify "fetching usage" logging appears. Use `mise run test-smoke` (requires 1Password CLI and .env file). We should also connect to the unix socket and verify some response comes back.
 - e2e: Always verify the Docker image builds and it runs and shows the same output as the smoke test. You should tag images with scrollwork:latest
 
 ## Development Commands
