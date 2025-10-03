@@ -53,7 +53,7 @@ There is no support for soft restarts.
 
 #### Command line flags
 
-- `--model`: AI model identifier (required). Multi-model not supported at this time. Currently assuming Anthropic.
+- `--model`: AI model identifier (required). Multiple models can be passed in. Currently supports Anthropic.
 - `--apiKey`: Provider API key for non-admin API requests (required)
 - `--adminKey`: Provider admin key for Admin API requests (required). This key should be present for Anthropic models given their API permission structure.
 - `--refreshRate`: Usage worker sync interval in minutes (default: 1)
@@ -62,20 +62,6 @@ There is no support for soft restarts.
 - `--highRiskThreshold`: Token percentage threshold for high risk level (default: 100)
 
 Ideally, this could also be configured via YAML.
-
-#### Multi-model support
-
-We should also consider what a multi-model world. In this thinking, we would count the tokens of the prompt with _all_ LLM providers. We would then return a risk assesment for each model. The only models we would care about are the ones configured.
-
-For example, we could support the flags `--model=claude-3-5-sonnet-20241022` and `--model=gpt-4o`. That would make all risk assesments check against Anthropic and OpenAI.
-
-The challenges:
-
-- Managing multiple API Keys
-- Initializing API clients based on the models provided
-- Performance impact, specifically rate limiting, of counting tokens for two providers
-
-We should be designing with the mindset of multi-model support but we will only support a list of "1" to start.
 
 ## Architecture Overview
 
