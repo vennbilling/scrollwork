@@ -12,7 +12,6 @@ import (
 
 type (
 	AnthropicClient struct {
-		model          string
 		messagesClient *anthropic.Client
 		adminClient    *anthropic.Client
 		version        string
@@ -36,7 +35,7 @@ const (
 	organizationMessagsUsageReportPath = "/v1/organizations/usage_report/messages"
 )
 
-func NewAnthropicClient(apiKey string, adminKey string, model string) *AnthropicClient {
+func NewAnthropicClient(apiKey string, adminKey string) *AnthropicClient {
 	messagesClient := anthropic.NewClient(option.WithAPIKey(apiKey))
 	adminClient := anthropic.NewClient(option.WithAPIKey(adminKey))
 
@@ -44,7 +43,6 @@ func NewAnthropicClient(apiKey string, adminKey string, model string) *Anthropic
 		messagesClient: &messagesClient,
 		adminClient:    &adminClient,
 		version:        anthropicVersion,
-		model:          model,
 	}
 }
 
@@ -66,12 +64,12 @@ func (a *AnthropicClient) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
-// GetOrganizationMessageUsageReport fetches the current number of uncached input tokens for all messages for a given model.
-func (a *AnthropicClient) GetOrganizationMessageUsageReport(ctx context.Context) (int, error) {
-	inputTokens := 0
+// GetOrganizationMessageUsageReport fetches the current number of uncached input tokens for all messages by model.
+func (a *AnthropicClient) GetOrganizationMessageUsageReport(ctx context.Context) (map[string]int, error) {
+	usage := make(map[string]int)
 
 	if a.adminClient == nil {
-		return inputTokens, fmt.Errorf("GetOrganizationMessageUsageReport failed: anthropic admin client is nil")
+		return usage, fmt.Errorf("GetOrganizationMessageUsageReport failed: anthropic admin client is nil")
 	}
 
 	startingAt := time.Now().Truncate(24 * time.Hour).Format(time.RFC3339)
@@ -93,22 +91,20 @@ func (a *AnthropicClient) GetOrganizationMessageUsageReport(ctx context.Context)
 
 	err := a.adminClient.Get(ctx, path, nil, &d)
 	if err != nil {
-		return inputTokens, err
+		return usage, err
 	}
 
 	if len(d.Data) == 0 {
-		return inputTokens, nil
+		return usage, nil
 	}
 
 	for _, d := range d.Data {
 		for _, result := range d.Results {
-			if result.Model == a.model {
-				inputTokens += result.UncachedInputTokens
-			}
+			usage[result.Model] += result.UncachedInputTokens
 		}
 	}
 
-	return inputTokens, nil
+	return usage, nil
 }
 
 func (a *AnthropicClient) CountTokens(ctx context.Context, messages []Message) (int, error) {

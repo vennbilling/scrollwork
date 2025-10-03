@@ -88,7 +88,7 @@ func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (map[string]in
 		return make(map[string]int), fmt.Errorf("fetchOrganizationUsage failed: OpenAI is not supported")
 	}
 
-	tokens, err := w.AnthropicClient.GetOrganizationMessageUsageReport(ctx)
+	usage, err := w.AnthropicClient.GetOrganizationMessageUsageReport(ctx)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return make(map[string]int), nil
@@ -97,11 +97,7 @@ func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (map[string]in
 		return make(map[string]int), fmt.Errorf("Failed to fetchOrganizationUsage: %v", err)
 	}
 
-	// Create per-model usage breakdown
-	tokensMap := make(map[string]int)
-	tokensMap[w.config.Model] = tokens
-
-	return tokensMap, nil
+	return usage, nil
 }
 
 func (w *UsageWorker) healthCheck(ctx context.Context) error {

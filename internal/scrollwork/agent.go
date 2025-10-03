@@ -116,7 +116,7 @@ func (a *Agent) Start(ctx context.Context) error {
 		// or have any logic based on the model we are using.
 		if llm.IsAnthropicModel(model) {
 			if a.anthropicClient == nil {
-				anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey, model)
+				anthropicClient := llm.NewAnthropicClient(a.config.APIKey, a.config.AdminKey)
 				a.anthropicClient = anthropicClient
 				a.worker.AnthropicClient = anthropicClient
 			}

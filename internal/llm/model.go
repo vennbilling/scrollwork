@@ -76,7 +76,9 @@ func (c *APIClient) GetCurrentOrganizationUsage(ctx context.Context) (map[string
 			if err != nil {
 				return u, err
 			}
-			u[model] = usage
+			if tokens, ok := usage[model]; ok {
+				u[model] = tokens
+			}
 		case IsOpenAIModel(model):
 			usage, err := c.openai.GetOrganizationCompletionsUsage(ctx)
 			if err != nil {
