@@ -25,10 +25,6 @@ type (
 		ticker          *time.Ticker
 		AnthropicClient *llm.AnthropicClient
 	}
-
-	UsageData struct {
-		Tokens map[string]int
-	}
 )
 
 // newUsageWorker creates a new [usageWorker].
@@ -51,7 +47,7 @@ func (w *UsageWorker) Start(ctx context.Context) error {
 		return err
 	}
 
-	w.config.UsageReceived <- usage.Tokens[w.config.Model]
+	w.config.UsageReceived <- usage[w.config.Model]
 	w.config.WorkerReady <- true
 
 	return nil
@@ -71,7 +67,7 @@ func (w *UsageWorker) Run(ctx context.Context) {
 				break
 			}
 
-			w.config.UsageReceived <- usage.Tokens[w.config.Model]
+			w.config.UsageReceived <- usage[w.config.Model]
 			log.Printf("Scrollwork Usage Worker has received the latest usage")
 		case <-ctx.Done():
 			return
@@ -87,33 +83,25 @@ func (w *UsageWorker) Stop() {
 	w.config.WorkerReady <- false
 }
 
-func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (UsageData, error) {
+func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (map[string]int, error) {
 	if llm.IsOpenAIModel(w.config.Model) {
-		return UsageData{
-			Tokens: make(map[string]int),
-		}, fmt.Errorf("fetchOrganizationUsage failed: OpenAI is not supported")
+		return make(map[string]int), fmt.Errorf("fetchOrganizationUsage failed: OpenAI is not supported")
 	}
 
 	tokens, err := w.AnthropicClient.GetOrganizationMessageUsageReport(ctx)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return UsageData{
-				Tokens: make(map[string]int),
-			}, nil
+			return make(map[string]int), nil
 		}
 
-		return UsageData{
-			Tokens: make(map[string]int),
-		}, fmt.Errorf("Failed to fetchOrganizationUsage: %v", err)
+		return make(map[string]int), fmt.Errorf("Failed to fetchOrganizationUsage: %v", err)
 	}
 
 	// Create per-model usage breakdown
 	tokensMap := make(map[string]int)
 	tokensMap[w.config.Model] = tokens
 
-	return UsageData{
-		Tokens: tokensMap,
-	}, nil
+	return tokensMap, nil
 }
 
 func (w *UsageWorker) healthCheck(ctx context.Context) error {
