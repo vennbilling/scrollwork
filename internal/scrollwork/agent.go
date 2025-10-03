@@ -253,13 +253,17 @@ func (a *Agent) handleConnection(ctx context.Context, conn net.Conn) {
 	// 5. Return a risk level of the request. Low = Low cost, Medium = Medium cost, High = High / Unknown cost. Costs are configurable
 
 	messages := []llm.Message{{Role: llm.MessageRoleUser, Content: "Hello world"}}
-	r, err := a.assesPrompt(ctx, messages)
+	riskLevels, err := a.assesPrompt(ctx, messages)
 	if err != nil {
 		log.Printf("assesPrompt failed: %v", err)
 		return
 	}
 
-	conn.Write([]byte(fmt.Sprintf("You are currently using %d tokens. Your prompt has a risk level of %s", a.getTotalUsage(), r)))
+	response := fmt.Sprintf("You are currently using %d tokens.\n", a.getTotalUsage())
+	for model, level := range riskLevels {
+		response += fmt.Sprintf("Model %s has a risk level of %s\n", model, level)
+	}
+	conn.Write([]byte(response))
 }
 
 func (a *Agent) processUsageUpdates(ctx context.Context) {
@@ -306,25 +310,33 @@ func (a *Agent) getTotalUsage() int {
 	return total
 }
 
-// Asses determines the risk level of a given prompt.
-func (a *Agent) assesPrompt(ctx context.Context, messages []llm.Message) (usage.RiskLevel, error) {
+// Asses determines the risk level of a given prompt for each configured model.
+func (a *Agent) assesPrompt(ctx context.Context, messages []llm.Message) (map[string]usage.RiskLevel, error) {
+	riskLevels := make(map[string]usage.RiskLevel)
+
+	if len(a.config.Models) == 0 {
+		return riskLevels, fmt.Errorf("no models configured")
+	}
+
 	for _, model := range a.config.Models {
 		switch {
 		case llm.IsAnthropicModel(model):
 			tokens, err := a.anthropicClient.CountTokens(ctx, messages)
 			if err != nil {
-				return usage.RiskLevelUnknown, err
+				riskLevels[model] = usage.RiskLevelUnknown
+				return riskLevels, err
 			}
 
 			level := a.riskThresholds.Asses(tokens)
-
-			return level, nil
+			riskLevels[model] = level
 		case llm.IsOpenAIModel(model):
-			return usage.RiskLevelUnknown, fmt.Errorf("OpenAI model %s is not supported at this time", model)
+			riskLevels[model] = usage.RiskLevelUnknown
+			return riskLevels, fmt.Errorf("OpenAI model %s is not supported at this time", model)
 		default:
-			return usage.RiskLevelUnknown, fmt.Errorf("unknown model: %s", model)
+			riskLevels[model] = usage.RiskLevelUnknown
+			return riskLevels, fmt.Errorf("unknown model: %s", model)
 		}
 	}
 
-	return usage.RiskLevelUnknown, fmt.Errorf("no models configured")
+	return riskLevels, nil
 }
