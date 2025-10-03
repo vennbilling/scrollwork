@@ -11,8 +11,8 @@ import (
 
 type (
 	UsageWorkerConfig struct {
-		Model         string
-		UsageReceived chan int
+		Models        []string
+		UsageReceived chan map[string]int
 		WorkerReady   chan bool
 		TickRate      int
 
@@ -47,7 +47,7 @@ func (w *UsageWorker) Start(ctx context.Context) error {
 		return err
 	}
 
-	w.config.UsageReceived <- usage[w.config.Model]
+	w.config.UsageReceived <- usage
 	w.config.WorkerReady <- true
 
 	return nil
@@ -67,7 +67,7 @@ func (w *UsageWorker) Run(ctx context.Context) {
 				break
 			}
 
-			w.config.UsageReceived <- usage[w.config.Model]
+			w.config.UsageReceived <- usage
 			log.Printf("Scrollwork Usage Worker has received the latest usage")
 		case <-ctx.Done():
 			return
@@ -84,25 +84,64 @@ func (w *UsageWorker) Stop() {
 }
 
 func (w *UsageWorker) fetchOrganizationUsage(ctx context.Context) (map[string]int, error) {
-	if llm.IsOpenAIModel(w.config.Model) {
-		return make(map[string]int), fmt.Errorf("fetchOrganizationUsage failed: OpenAI is not supported")
+	usage := make(map[string]int)
+
+	// Check if we have any Anthropic models
+	hasAnthropicModel := false
+	for _, model := range w.config.Models {
+		if llm.IsAnthropicModel(model) {
+			hasAnthropicModel = true
+			break
+		}
 	}
 
-	usage, err := w.AnthropicClient.GetOrganizationMessageUsageReport(ctx)
-	if err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
-			return make(map[string]int), nil
+	// Fetch Anthropic usage once for all Anthropic models
+	if hasAnthropicModel {
+		if w.AnthropicClient == nil {
+			return usage, fmt.Errorf("fetchOrganizationUsage failed: AnthropicClient not configured")
 		}
 
-		return make(map[string]int), fmt.Errorf("Failed to fetchOrganizationUsage: %v", err)
+		anthropicUsage, err := w.AnthropicClient.GetOrganizationMessageUsageReport(ctx)
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				return make(map[string]int), nil
+			}
+
+			return make(map[string]int), fmt.Errorf("Failed to fetchOrganizationUsage: %v", err)
+		}
+
+		// Copy Anthropic usage for configured models
+		for _, model := range w.config.Models {
+			if llm.IsAnthropicModel(model) {
+				if tokens, ok := anthropicUsage[model]; ok {
+					usage[model] = tokens
+				}
+			}
+		}
+	}
+
+	// TODO: Add OpenAI support
+	for _, model := range w.config.Models {
+		if llm.IsOpenAIModel(model) {
+			return usage, fmt.Errorf("fetchOrganizationUsage failed: OpenAI model %s is not supported", model)
+		}
 	}
 
 	return usage, nil
 }
 
 func (w *UsageWorker) healthCheck(ctx context.Context) error {
-	switch {
-	case llm.IsAnthropicModel(w.config.Model):
+	// Check if we have any Anthropic models
+	hasAnthropicModel := false
+	for _, model := range w.config.Models {
+		if llm.IsAnthropicModel(model) {
+			hasAnthropicModel = true
+			break
+		}
+	}
+
+	// Health check Anthropic client if needed
+	if hasAnthropicModel {
 		if w.AnthropicClient == nil {
 			return fmt.Errorf("healthCheck failed: AnthropicClient was not configured")
 		}
@@ -110,8 +149,13 @@ func (w *UsageWorker) healthCheck(ctx context.Context) error {
 		if err := w.AnthropicClient.HealthCheck(ctx); err != nil {
 			return fmt.Errorf("healthCheck failed: %v", err)
 		}
-	case llm.IsOpenAIModel(w.config.Model):
-		return fmt.Errorf("healthCheck failed: LLM model %s is not supported", w.config.Model)
+	}
+
+	// Check for unsupported models
+	for _, model := range w.config.Models {
+		if llm.IsOpenAIModel(model) {
+			return fmt.Errorf("healthCheck failed: LLM model %s is not supported", model)
+		}
 	}
 
 	return nil

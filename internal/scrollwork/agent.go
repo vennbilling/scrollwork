@@ -41,7 +41,7 @@ type (
 		anthropicClient *llm.AnthropicClient
 		openAIClient    struct{}
 
-		usageReceived chan int
+		usageReceived chan map[string]int
 		workerReady   chan bool
 
 		currentUsageTokens map[string]int
@@ -62,7 +62,7 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 	}
 
 	var wg sync.WaitGroup
-	usageReceived := make(chan int, 1)
+	usageReceived := make(chan map[string]int, 1)
 	workerReady := make(chan bool, 1)
 
 	c := llm.ClientConfig{
@@ -72,7 +72,7 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 	llmClient := llm.NewAPIClient(c)
 
 	workerConfig := &UsageWorkerConfig{
-		Model:         config.Models[0], // Use first model for now (single model support)
+		Models:        config.Models,
 		UsageReceived: usageReceived,
 		WorkerReady:   workerReady,
 		TickRate:      config.RefreshUsageIntervalMinutes,
@@ -267,10 +267,10 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case tokens := <-a.usageReceived:
-			// For now, update the first model until we have multi-model worker support
-			if len(a.config.Models) > 0 {
-				a.updateUsage(a.config.Models[0], tokens)
+		case usage := <-a.usageReceived:
+			// Update usage for all models
+			for model, tokens := range usage {
+				a.updateUsage(model, tokens)
 			}
 			log.Printf("Current Usage: %d tokens", a.getTotalUsage())
 			break
