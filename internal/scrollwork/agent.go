@@ -44,8 +44,9 @@ type (
 		usageReceived chan int
 		workerReady   chan bool
 
-		currentUsage   usage.ModelUsage
-		riskThresholds usage.RiskThresholds
+		currentUsageTokens map[string]int
+		usageMu            sync.Mutex
+		riskThresholds     usage.RiskThresholds
 
 		wg *sync.WaitGroup
 	}
@@ -93,7 +94,7 @@ func NewAgent(config *AgentConfig) (*Agent, error) {
 		usageReceived:  usageReceived,
 		workerReady:    workerReady,
 		wg:             &wg,
-		currentUsage:   usage.ModelUsage{},
+		currentUsageTokens: make(map[string]int),
 		riskThresholds: riskThresholds,
 	}, nil
 }
@@ -258,7 +259,7 @@ func (a *Agent) handleConnection(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	conn.Write([]byte(fmt.Sprintf("You are currently using %d tokens. Your prompt has a risk level of %s", a.currentUsage.Tokens(), r)))
+	conn.Write([]byte(fmt.Sprintf("You are currently using %d tokens. Your prompt has a risk level of %s", a.getTotalUsage(), r)))
 }
 
 func (a *Agent) processUsageUpdates(ctx context.Context) {
@@ -267,11 +268,42 @@ func (a *Agent) processUsageUpdates(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case tokens := <-a.usageReceived:
-			a.currentUsage.Update(tokens)
-			log.Printf("Current Usage: %d tokens", a.currentUsage.Tokens())
+			// For now, update the first model until we have multi-model worker support
+			if len(a.config.Models) > 0 {
+				a.updateUsage(a.config.Models[0], tokens)
+			}
+			log.Printf("Current Usage: %d tokens", a.getTotalUsage())
 			break
 		}
 	}
+}
+
+// updateUsage updates the token usage for a specific model in a thread-safe manner.
+func (a *Agent) updateUsage(model string, tokens int) {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+
+	a.currentUsageTokens[model] = tokens
+}
+
+// getUsage returns the current token usage for a specific model in a thread-safe manner.
+func (a *Agent) getUsage(model string) int {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+
+	return a.currentUsageTokens[model]
+}
+
+// getTotalUsage returns the total token usage across all models in a thread-safe manner.
+func (a *Agent) getTotalUsage() int {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+
+	total := 0
+	for _, tokens := range a.currentUsageTokens {
+		total += tokens
+	}
+	return total
 }
 
 // Asses determines the risk level of a given prompt.
