@@ -9,7 +9,7 @@
 *.dylib
 
 # Project binaries
-scrollwork
+./scrollwork
 bin/
 
 # Test binary, built with `go test -c`
